@@ -193,43 +193,90 @@ class MWLBDScraper:
         discovered: List[Dict[str, Any]] = []
         seen_urls = set()
 
-        for a in soup.find_all('a', href=True):
-            href = a['href']
-            if '/movie/' in href and href not in seen_urls:
-                slug = href.strip('/').split('/')[-1]
-                if not slug or slug in ('movie', 'movies') or any(x in href for x in ['/genre/', '/category/', '/tag/', '/page/']):
+        from database import is_2026_or_future
+
+        # 1. First parse structured article items if available
+        articles = soup.select('article.item')
+        if articles:
+            for article in articles:
+                a = article.select_one('h3 a') or article.select_one('.poster a') or article.select_one('a[href*="/movie/"]')
+                if not a or not a.get('href'):
                     continue
+                href = a['href']
+                if href in seen_urls:
+                    continue
+
+                full_url = urljoin(self.base_url, href)
                 raw_text = a.text.strip()
                 if any(bad in raw_text.lower() for bad in ['see all', 'view all', 'all movies']):
                     continue
 
-                full_url = urljoin(self.base_url, href)
+                year_span = article.select_one('.data span')
+                year_text = year_span.text.strip() if year_span else ""
 
-                poster_url = ""
-                parent_container = a.find_parent(['article', 'div', 'li'])
-                if parent_container:
-                    img = parent_container.find('img')
-                    if img:
-                        poster_url = img.get('src') or img.get('data-src') or ""
+                img = article.select_one('.poster img')
+                poster_url = (img.get('src') or img.get('data-src') or "") if img else ""
 
-                year_match = re.search(r'\b(20\d\d|19\d\d)\b', raw_text or href)
-                year = year_match.group(1) if year_match else ""
-
-                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_text)
-                clean_title = clean_title.strip(' -:|')
+                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_text).strip(' -:|')
                 if not clean_title:
-                    clean_title = slug.replace('-', ' ').title()
+                    clean_title = href.strip('/').split('/')[-1].replace('-', ' ').title()
 
-                seen_urls.add(href)
-                discovered.append({
+                candidate = {
                     "title": clean_title,
                     "url": full_url,
                     "source_url": full_url,
                     "poster": poster_url,
-                    "year": year
-                })
+                    "year": year_text or "2026"
+                }
 
-        logger.info(f"Page {page_num}: discovered {len(discovered)} movies.")
+                if not is_2026_or_future(candidate):
+                    continue
+
+                seen_urls.add(href)
+                discovered.append(candidate)
+
+        # 2. Fallback to general link parsing if articles weren't found
+        if not discovered and not articles:
+            for a in soup.find_all('a', href=True):
+                href = a['href']
+                if '/movie/' in href and href not in seen_urls:
+                    slug = href.strip('/').split('/')[-1]
+                    if not slug or slug in ('movie', 'movies') or any(x in href for x in ['/genre/', '/category/', '/tag/', '/page/']):
+                        continue
+                    raw_text = a.text.strip()
+                    if any(bad in raw_text.lower() for bad in ['see all', 'view all', 'all movies']):
+                        continue
+
+                    full_url = urljoin(self.base_url, href)
+                    poster_url = ""
+                    parent_container = a.find_parent(['article', 'div', 'li'])
+                    if parent_container:
+                        img = parent_container.find('img')
+                        if img:
+                            poster_url = img.get('src') or img.get('data-src') or ""
+
+                    year_match = re.search(r'\b(20\d\d|19\d\d)\b', raw_text or href)
+                    year = year_match.group(1) if year_match else ""
+
+                    clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_text).strip(' -:|')
+                    if not clean_title:
+                        clean_title = slug.replace('-', ' ').title()
+
+                    candidate = {
+                        "title": clean_title,
+                        "url": full_url,
+                        "source_url": full_url,
+                        "poster": poster_url,
+                        "year": year
+                    }
+
+                    if not is_2026_or_future(candidate):
+                        continue
+
+                    seen_urls.add(href)
+                    discovered.append(candidate)
+
+        logger.info(f"Page {page_num}: discovered {len(discovered)} 2026+ movies.")
         return discovered
 
     def get_total_catalog_pages(self) -> int:
@@ -253,6 +300,110 @@ class MWLBDScraper:
                 if m:
                     page_nums.append(int(m.group(1)))
         return max(page_nums) if page_nums else 487
+
+    def get_total_2026_pages(self) -> int:
+        """Determines the number of pages in the dedicated /release/2026/ archive."""
+        url = f"{self.base_url}/release/2026/"
+        html = self._fetch_url(url)
+        if not html:
+            return 13
+        soup = BeautifulSoup(html, 'html.parser')
+        span = soup.select_one('.pagination span')
+        if span:
+            match = re.search(r'Page\s+\d+\s+of\s+(\d+)', span.text, re.I)
+            if match:
+                return int(match.group(1))
+        return 13
+
+    def crawl_2026_archive(
+        self,
+        start_page: int = 1,
+        end_page: Optional[int] = None,
+        concurrency: int = 5,
+        progress_callback: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Crawls every page in the dedicated /release/2026/ archive.
+        Ingests all 2026 new releases into movies.json with posters, titles, and URLs.
+        """
+        import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from database import db, is_2026_or_future
+
+        if not end_page:
+            end_page = self.get_total_2026_pages()
+
+        logger.info(f"Starting crawl of dedicated 2026 releases: Pages {start_page} to {end_page}...")
+        total_movies_indexed = 0
+        pages_processed = 0
+
+        def scrape_page(p: int) -> List[Dict[str, Any]]:
+            url = f"{self.base_url}/release/2026/page/{p}/" if p > 1 else f"{self.base_url}/release/2026/"
+            p_html = self._fetch_url(url)
+            if not p_html:
+                return []
+            p_soup = BeautifulSoup(p_html, 'html.parser')
+            items = []
+            for article in p_soup.select('article.item'):
+                title_el = article.select_one('h3 a')
+                year_el = article.select_one('.data span')
+                img_el = article.select_one('.poster img')
+                if not title_el:
+                    continue
+
+                raw_title = title_el.text.strip()
+                movie_url = urljoin(self.base_url, title_el.get('href', ''))
+                poster_url = (img_el.get('src') or img_el.get('data-src') or "") if img_el else ""
+                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_title).strip(' -:|')
+                if not clean_title:
+                    clean_title = movie_url.strip('/').split('/')[-1].replace('-', ' ').title()
+
+                slug_id = self._generate_id(f"{clean_title} 2026")
+
+                # Detect genre keywords
+                detected_genres = []
+                title_lower = raw_title.lower()
+                for kw, g in [("hindi", "Bollywood"), ("dual audio", "Dual Audio"), ("dubbed", "Hindi Dubbed"), ("action", "Action"), ("horror", "Horror"), ("comedy", "Comedy"), ("series", "TV Series"), ("anime", "Anime")]:
+                    if kw in title_lower:
+                        detected_genres.append(g)
+                genre = ", ".join(detected_genres) if detected_genres else "General"
+
+                candidate = {
+                    "id": slug_id,
+                    "title": clean_title,
+                    "year": "2026",
+                    "genre": genre,
+                    "director": "Unknown",
+                    "cast": "Unknown",
+                    "description": f"{raw_title} (2026 New Release)",
+                    "poster": poster_url,
+                    "source_url": movie_url,
+                    "download_links": [],
+                    "status": "pending"
+                }
+                if is_2026_or_future(candidate):
+                    items.append(candidate)
+            return items
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            future_to_page = {executor.submit(scrape_page, p): p for p in range(start_page, end_page + 1)}
+            for future in as_completed(future_to_page):
+                try:
+                    movies = future.result()
+                    if movies:
+                        saved = db.save_movies_batch(movies)
+                        total_movies_indexed += saved
+                    pages_processed += 1
+                    if progress_callback:
+                        progress_callback(pages_processed, end_page - start_page + 1, total_movies_indexed)
+                except Exception as e:
+                    logger.error(f"Error crawling 2026 page: {e}")
+
+        logger.info(f"Completed 2026 archive crawl: {pages_processed} pages, {total_movies_indexed} movies indexed. Total in DB: {db.get_stats()['total']}")
+        return {
+            "pages_crawled": pages_processed,
+            "total_movies": total_movies_indexed
+        }
 
     def crawl_all_catalog_pages(
         self,

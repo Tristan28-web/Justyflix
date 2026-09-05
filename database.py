@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import shutil
 import threading
@@ -10,6 +11,57 @@ logger = setup_logger('database')
 
 # Reentrant lock for thread-safe database operations
 _db_lock = threading.RLock()
+
+
+def is_2026_or_future(movie: Dict[str, Any]) -> bool:
+    """
+    Validates whether a movie is strictly a 2026 or future release.
+    Guards against older releases (<=2025) and sci-fi title numbers like
+    Blade Runner 2049, Love Story 2050, Lx 2048, Kalki 2898 AD, etc.
+    """
+    if not movie:
+        return False
+
+    title = str(movie.get("title", "")).strip()
+    url = str(movie.get("source_url") or movie.get("url", "")).strip()
+    year_str = str(movie.get("year", "")).strip()
+    desc = str(movie.get("description", "")).strip()
+
+    # 1. Obvious older year markers in title, URL, or desc
+    has_old_year = re.search(r'\b(19\d\d|200\d|201\d|202[0-5])\b', f"{title} {desc}")
+    if re.search(r'-(19\d\d|200\d|201\d|202[0-5])/?$', url):
+        return False
+
+    # 2. Exclude known futuristic title numbers if old year is present
+    if any(sci in title for sci in ['2049', '2050', '2067', '2036', '2048', '2045', '2898', '2064']):
+        if has_old_year or not re.search(r'-202[6-9]/?$', url):
+            return False
+
+    # 3. Canonical URL slug ending with -2026/ or future e.g. -2027/
+    if re.search(r'-(202[6-9]|20[3-9]\d)/?$', url):
+        return True
+
+    # 4. Check for explicit 2026+ release year in title: (2026), [2026], etc.
+    if re.search(r'[\(\[\s]2026[\)\]\s:]', title):
+        if not has_old_year:
+            return True
+
+    # 5. Check movie['year'] field
+    if year_str == "2026":
+        if not has_old_year:
+            return True
+
+    # 6. Check formatted date strings e.g. "Sep. 03, 2026"
+    if "2026" in year_str and not has_old_year:
+        return True
+
+    # 7. Check if year is a future year (e.g. 2027..2035)
+    if year_str.isdigit():
+        y_int = int(year_str)
+        if 2026 <= y_int <= 2035 and not has_old_year:
+            return True
+
+    return False
 
 
 class JSONDatabase:
@@ -128,6 +180,10 @@ class JSONDatabase:
         if not movie or "id" not in movie:
             raise ValueError("Movie data must contain an 'id'")
 
+        if not is_2026_or_future(movie):
+            logger.warning(f"Rejected movie '{movie.get('title')}': not a 2026+ release.")
+            return None
+
         with _db_lock:
             data = self._read_data()
             movie_id = str(movie["id"])
@@ -142,7 +198,7 @@ class JSONDatabase:
             entry = {
                 "id": movie_id,
                 "title": movie.get("title", existing.get("title", "Untitled")),
-                "year": str(movie.get("year", existing.get("year", ""))),
+                "year": str(movie.get("year", existing.get("year", "2026"))),
                 "genre": movie.get("genre", existing.get("genre", "General")),
                 "director": movie.get("director", existing.get("director", "Unknown")),
                 "cast": movie.get("cast", existing.get("cast", "Unknown")),
@@ -165,6 +221,7 @@ class JSONDatabase:
         """
         Batch add or update movies in JSON database with a single atomic write.
         Dramatically improves throughput when scraping thousands of movies.
+        Strictly enforces 2026 and future releases only.
         """
         if not movies_list:
             return 0
@@ -177,6 +234,9 @@ class JSONDatabase:
             for movie in movies_list:
                 if not movie or "id" not in movie:
                     continue
+                if not is_2026_or_future(movie):
+                    continue
+
                 movie_id = str(movie["id"])
                 existing = data["movies"].get(movie_id, {})
 
@@ -186,7 +246,7 @@ class JSONDatabase:
                 entry = {
                     "id": movie_id,
                     "title": movie.get("title", existing.get("title", "Untitled")),
-                    "year": str(movie.get("year", existing.get("year", ""))),
+                    "year": str(movie.get("year", existing.get("year", "2026"))),
                     "genre": movie.get("genre", existing.get("genre", "General")),
                     "director": movie.get("director", existing.get("director", "Unknown")),
                     "cast": movie.get("cast", existing.get("cast", "Unknown")),
@@ -203,8 +263,36 @@ class JSONDatabase:
 
             data["stats"]["last_scrape"] = now_iso
             self._atomic_write(data)
-            logger.info(f"Batch saved {saved_count} movies successfully.")
+            logger.info(f"Batch saved {saved_count} 2026+ movies successfully.")
             return saved_count
+
+    def clean_to_2026_and_future(self) -> int:
+        """
+        Prunes the database to keep ONLY verified 2026 and future releases.
+        Auto-repairs any missing source_url using movie slug.
+        Returns the number of 2026+ movies preserved.
+        """
+        with _db_lock:
+            data = self._read_data()
+            old_count = len(data.get("movies", {}))
+            filtered_movies = {}
+
+            for movie_id, movie in data.get("movies", {}).items():
+                if is_2026_or_future(movie):
+                    # Ensure year is clean 2026
+                    if not movie.get("year") or not str(movie.get("year")).isdigit():
+                        movie["year"] = "2026"
+                    # Auto-repair source_url if missing
+                    if not movie.get("source_url"):
+                        slug = movie_id.rsplit('-', 1)[0]
+                        movie["source_url"] = f"https://fojik.site/movie/{slug}/"
+                    filtered_movies[movie_id] = movie
+
+            data["movies"] = filtered_movies
+            self._atomic_write(data)
+            preserved = len(filtered_movies)
+            logger.info(f"Pruned legacy movies: {old_count} -> {preserved} 2026+ releases preserved.")
+            return preserved
 
     def get_movie(self, movie_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a movie by its ID."""

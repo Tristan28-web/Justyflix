@@ -74,12 +74,48 @@ def crawl_site(start_page: int = 1, max_pages: int = None, concurrency: int = 5,
     logger.info("=" * 65)
 
 
+def crawl_2026_releases(start_page: int = 1, end_page: int = None, concurrency: int = 4):
+    scraper = MWLBDScraper()
+    total_pages = scraper.get_total_2026_pages()
+    if not end_page:
+        end_page = total_pages
+
+    logger.info("=" * 65)
+    logger.info("STARTING DEDICATED 2026+ RELEASES CRAWLER")
+    logger.info(f"Target Pages: {start_page} to {end_page} (Total: {end_page - start_page + 1} pages)")
+    logger.info(f"Base Mirror: {scraper.base_url}")
+    logger.info(f"Database: {Config.DATABASE_FILE}")
+    logger.info("=" * 65)
+
+    def on_prog(processed, total, count):
+        logger.info(f"[2026 Archive] Crawled {processed}/{total} pages | DB Total: {db.get_stats()['total']} movies")
+
+    result = scraper.crawl_2026_archive(
+        start_page=start_page,
+        end_page=end_page,
+        concurrency=concurrency,
+        progress_callback=on_prog
+    )
+
+    stats = db.get_stats()
+    logger.info("=" * 65)
+    logger.info("2026 CRAWL COMPLETE!")
+    logger.info(f"Pages Crawled: {result['pages_crawled']}")
+    logger.info(f"Total 2026+ Movies in Database: {stats['total']}")
+    logger.info("=" * 65)
+
+
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="MWLBD Full-Site Autonomous Crawler")
+    parser = argparse.ArgumentParser(description="MWLBD 2026+ Autonomous Crawler")
+    parser.add_argument('--full-site', action='store_true', help="Crawl full site catalog (filtered to 2026+ releases)")
     parser.add_argument('--start', type=int, default=1, help="Starting archive page (default: 1)")
-    parser.add_argument('--pages', type=int, default=None, help="Number of pages to crawl (default: all pages)")
-    parser.add_argument('--concurrency', type=int, default=5, help="Concurrent page workers (default: 5)")
+    parser.add_argument('--pages', type=int, default=None, help="Number of pages to crawl")
+    parser.add_argument('--concurrency', type=int, default=4, help="Concurrent page workers (default: 4)")
     parser.add_argument('--resume', action='store_true', help="Resume from last saved progress")
     args = parser.parse_args()
 
-    crawl_site(start_page=args.start, max_pages=args.pages, concurrency=args.concurrency, resume=args.resume)
+    if args.full_site:
+        crawl_site(start_page=args.start, max_pages=args.pages, concurrency=args.concurrency, resume=args.resume)
+    else:
+        crawl_2026_releases(start_page=args.start, end_page=args.pages, concurrency=args.concurrency)
+

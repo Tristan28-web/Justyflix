@@ -15,21 +15,21 @@ CORS(app)
 
 
 def seed_initial_data_if_empty():
-    """Seeds initial sample movies if database is empty on first boot."""
+    """Populates database with initial 2026 showcase releases if empty."""
     stats = db.get_stats()
     if stats.get('total', 0) == 0:
-        logger.info("Database is empty. Populating with initial verified Google Drive showcase movies...")
+        logger.info("Database is empty. Populating with initial verified 2026 showcase releases...")
         sample_movies = [
             {
-                "id": "rebel-ridge-2024",
-                "title": "Rebel Ridge",
-                "year": "2024",
-                "genre": "Action, Crime, Drama",
-                "director": "Jeremy Saulnier",
-                "cast": "Aaron Pierre, Don Johnson, AnnaSophia Robb",
-                "description": "A former Marine confronts corruption in a small town after local law enforcement unjustly seizes the bag of cash he needed to post bail for his cousin.",
-                "poster": "https://m.media-amazon.com/images/M/MV5BNTI2MWZlMWUtZjNlYi00NzhlLTgwNDItNzc2YzY4OWMyN2NmXkEyXkFqcGc@._V1_FMjpg_UX1000_.jpg",
-                "source_url": "https://fojik.site/movie/rebel-ridge-2024/",
+                "id": "bhooth-bangla-2026-2026",
+                "title": "Bhooth Bangla",
+                "year": "2026",
+                "genre": "Bollywood, Comedy, Horror",
+                "director": "Priyadarshan",
+                "cast": "Akshay Kumar",
+                "description": "Bhooth Bangla (2026) Hindi Full Movie Download Direct Google Drive",
+                "poster": "https://fojik.site/wp-content/uploads/79RBp8afL4u4z3nVGR78z6eIvBB-185x278.jpg",
+                "source_url": "https://fojik.site/movie/bhooth-bangla-2026/",
                 "download_links": [
                     {
                         "url": "https://drive.google.com/uc?export=download&id=1a2B3c4D5e6F7g8H9i0J_SAMPLE_1080p",
@@ -40,50 +40,6 @@ def seed_initial_data_if_empty():
                         "label": "Download Direct (1080p WEB-DL)",
                         "quality": "1080p",
                         "size": "2.1 GB"
-                    },
-                    {
-                        "url": "https://drive.google.com/uc?export=download&id=1a2B3c4D5e6F7g8H9i0J_SAMPLE_720p",
-                        "original_url": "https://drive.google.com/file/d/1a2B3c4D5e6F7g8H9i0J_SAMPLE_720p/view?usp=sharing",
-                        "preview_url": "https://drive.google.com/file/d/1a2B3c4D5e6F7g8H9i0J_SAMPLE_720p/preview",
-                        "type": "gdrive",
-                        "file_id": "1a2B3c4D5e6F7g8H9i0J_SAMPLE_720p",
-                        "label": "Download Direct (720p WEB-DL)",
-                        "quality": "720p",
-                        "size": "1.1 GB"
-                    }
-                ],
-                "status": "available"
-            },
-            {
-                "id": "the-bridge-curse-2020",
-                "title": "The Bridge Curse",
-                "year": "2020",
-                "genre": "Horror, Mystery, Thriller",
-                "director": "Lester Hsi",
-                "cast": "Ning Chang, J.C. Lin, Summer Meng",
-                "description": "A group of university students test an urban legend about a haunted university bridge, inadvertently unleashing an evil vengeful ghost.",
-                "poster": "https://m.media-amazon.com/images/M/MV5BYmM4ODk4YTEtMWIwMS00ZjgxLTk0N2EtOGEyMTc2MTAzY2U3XkEyXkFqcGdeQXVyMTQxNzMzNDI@._V1_FMjpg_UX1000_.jpg",
-                "source_url": "https://fojik.site/movie/the-bridge-curse-2020/",
-                "download_links": [
-                    {
-                        "url": "https://drive.google.com/uc?export=download&id=2b3C4d5E6f7G8h9I0j1K_SAMPLE_720p",
-                        "original_url": "https://drive.google.com/file/d/2b3C4d5E6f7G8h9I0j1K_SAMPLE_720p/view?usp=sharing",
-                        "preview_url": "https://drive.google.com/file/d/2b3C4d5E6f7G8h9I0j1K_SAMPLE_720p/preview",
-                        "type": "gdrive",
-                        "file_id": "2b3C4d5E6f7G8h9I0j1K_SAMPLE_720p",
-                        "label": "Download Direct (720p NF WEBRip)",
-                        "quality": "720p",
-                        "size": "639 MB"
-                    },
-                    {
-                        "url": "https://drive.google.com/uc?export=download&id=2b3C4d5E6f7G8h9I0j1K_SAMPLE_480p",
-                        "original_url": "https://drive.google.com/file/d/2b3C4d5E6f7G8h9I0j1K_SAMPLE_480p/view?usp=sharing",
-                        "preview_url": "https://drive.google.com/file/d/2b3C4d5E6f7G8h9I0j1K_SAMPLE_480p/preview",
-                        "type": "gdrive",
-                        "file_id": "2b3C4d5E6f7G8h9I0j1K_SAMPLE_480p",
-                        "label": "Download Direct (480p NF WEBRip)",
-                        "quality": "480p",
-                        "size": "370 MB"
                     }
                 ],
                 "status": "available"
@@ -110,8 +66,8 @@ crawler_state = {
 _crawler_lock = threading.Lock()
 
 
-def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4):
-    """Executes multi-page catalog crawler in background thread."""
+def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4, target: str = "2026_archive"):
+    """Executes crawler in background thread."""
     global crawler_state
     with _crawler_lock:
         if crawler_state["is_running"]:
@@ -122,19 +78,28 @@ def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4
         crawler_state["num_pages"] = num_pages
         crawler_state["pages_completed"] = 0
         crawler_state["total_scraped"] = 0
-        crawler_state["message"] = f"Crawling pages {start_page} to {start_page + num_pages - 1}..."
+        crawler_state["message"] = f"Crawling 2026+ releases (target={target})..."
 
     def _progress_cb(processed, total_pages, scraped_count):
         with _crawler_lock:
             crawler_state["pages_completed"] = processed
             crawler_state["total_scraped"] = scraped_count
-            crawler_state["message"] = f"Crawled {processed}/{total_pages} pages ({scraped_count} movies indexed)..."
+            crawler_state["message"] = f"Crawled {processed}/{total_pages} pages ({scraped_count} 2026+ movies indexed)..."
 
     try:
         scraper = MWLBDScraper()
         from datetime import datetime
 
-        if num_pages >= 5:
+        if target == "2026_archive":
+            result = scraper.crawl_2026_archive(
+                start_page=start_page,
+                end_page=start_page + num_pages - 1 if num_pages > 1 else None,
+                concurrency=concurrency,
+                progress_callback=_progress_cb
+            )
+            scraped = result.get("total_movies", 0)
+            pages = result.get("pages_crawled", num_pages)
+        elif num_pages >= 5:
             # High-throughput multi-page catalog crawler
             result = scraper.crawl_all_catalog_pages(
                 start_page=start_page,
@@ -160,7 +125,7 @@ def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4
             crawler_state["total_scraped"] = scraped
             crawler_state["message"] = (
                 f"Successfully crawled {pages} page(s)! "
-                f"Saved/updated {scraped} movies into database."
+                f"Saved/updated {scraped} 2026+ movies into database."
             )
             crawler_state["last_run"] = datetime.utcnow().isoformat()
     except Exception as e:
@@ -336,17 +301,18 @@ def api_trigger_crawl():
     start_page = request.args.get('start_page', default=1, type=int)
     num_pages = request.args.get('num_pages', default=2, type=int)
     concurrency = request.args.get('concurrency', default=4, type=int)
+    target = request.args.get('target', default='2026_archive')
 
     thread = threading.Thread(
         target=run_crawl_task,
-        kwargs={'start_page': start_page, 'num_pages': num_pages, 'concurrency': concurrency},
+        kwargs={'start_page': start_page, 'num_pages': num_pages, 'concurrency': concurrency, 'target': target},
         daemon=True
     )
     thread.start()
 
     return jsonify({
         "status": "success",
-        "message": f"Deep crawler started for {num_pages} page(s) starting at page {start_page}.",
+        "message": f"2026+ crawler started (target={target}) for {num_pages} page(s) starting at page {start_page}.",
         "crawler": crawler_state
     }), 202
 

@@ -1,12 +1,12 @@
 import os
 import threading
 from typing import Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context
 from flask_cors import CORS
 from config import Config, setup_logger
 from database import db
 from scraper import MWLBDScraper
-from download_resolver import resolve_movie_direct_download
+from download_resolver import resolve_movie_direct_download, stream_mkv_with_auto_audio
 
 logger = setup_logger('website')
 
@@ -241,9 +241,12 @@ def movie_detail(movie_id):
 @app.route('/download/<movie_id>/<int:link_idx>')
 def download_movie(movie_id, link_idx):
     """
-    Direct high-speed download route. Resolves intermediate tokens to the
-    Cloudflare R2 / Google Drive CDN direct download URL and redirects (302)
-    so the video file is directly downloaded to the user's PC.
+    Automatic audio-configured download route:
+    Resolves intermediate tokens and streams the video file with on-the-fly MKV
+    header patching so that:
+    - English is the default audio track for Hollywood/Dual Audio releases.
+    - Hindi is the default audio track for Bollywood releases.
+    Directly downloaded to the user's PC with zero manual player configuration.
     """
     movie = db.get_movie(movie_id)
     if not movie:
@@ -266,18 +269,38 @@ def download_movie(movie_id, link_idx):
         file_id=file_id
     )
 
-    if res.get('success') and res.get('download_url'):
-        return redirect(res['download_url'], code=302)
+    if not res.get('success') or not res.get('download_url'):
+        return redirect(fallback_url or source_url)
 
-    # Fallback to original url
-    return redirect(fallback_url or source_url)
+    r2_url = res['download_url']
+    filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
+
+    # Determine if movie is pure Bollywood (Hindi by default) or Hollywood/Dual Audio (English by default)
+    genre_str = str(movie.get('genre', '')).lower()
+    desc_str = str(movie.get('description', '')).lower()
+    is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
+        k in desc_str or k in genre_str for k in ['dual audio', 'hollywood', 'english', '[hindi org & eng]', 'eng & hindi']
+    )
+
+    try:
+        range_header = request.headers.get('Range')
+        gen, status, resp_hdrs = stream_mkv_with_auto_audio(
+            r2_url=r2_url,
+            is_bollywood=is_bollywood,
+            range_header=range_header
+        )
+        resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
+        return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
+    except Exception as ex:
+        logger.warning(f"Streaming auto-audio failed, redirecting directly: {ex}")
+        return redirect(r2_url, code=302)
 
 
 @app.route('/api/resolve-download/<movie_id>/<int:link_idx>', methods=['GET'])
 def api_resolve_download(movie_id, link_idx):
     """
     AJAX endpoint for instant download preparation with frontend spinner.
-    Returns direct CDN URL with Content-Disposition for local PC download.
+    Returns direct auto-audio download URL with Content-Disposition for local PC download.
     """
     movie = db.get_movie(movie_id)
     if not movie:
@@ -301,12 +324,14 @@ def api_resolve_download(movie_id, link_idx):
     )
 
     if res.get('success') and res.get('download_url'):
+        download_endpoint = url_for('download_movie', movie_id=movie_id, link_idx=link_idx)
         return jsonify({
             "status": "success",
-            "download_url": res['download_url'],
+            "download_url": download_endpoint,
+            "direct_cdn_url": res['download_url'],
             "filename": res.get('filename', f"{movie.get('title', 'Movie')}_{quality}.mkv"),
             "quality": quality,
-            "source": res.get('source', 'Cloudflare R2 High-Speed CDN')
+            "source": "Justyflix Auto-Audio Stream (English Default)"
         }), 200
     else:
         return jsonify({

@@ -5,7 +5,7 @@ import time
 import threading
 import urllib.request
 import urllib.parse
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from bs4 import BeautifulSoup
 from config import setup_logger
 
@@ -344,3 +344,173 @@ def resolve_movie_direct_download(
             "source": "None",
             "error": str(ex)
         }
+
+
+def find_mkv_tracks_element(data: bytes) -> int:
+    """Finds the actual Tracks master element (0x16 0x54 0xAE 0x6B) containing TrackEntries."""
+    needle = b'\x16\x54\xae\x6b'
+    pos = 0
+    while True:
+        idx = data.find(needle, pos)
+        if idx == -1:
+            return -1
+        # Skip if part of SeekHead SeekID (0x53 0xAB)
+        if idx >= 2 and data[idx-2:idx] == b'\x53\xab':
+            pos = idx + len(needle)
+            continue
+        # Check if followed by size vint and TrackEntry (0xAE)
+        if b'\xae' in data[idx+4:idx+24]:
+            return idx
+        pos = idx + len(needle)
+
+
+def patch_mkv_header_bytes(first_chunk: bytearray, is_bollywood: bool = False) -> bytearray:
+    """
+    Parses TrackEntry elements in the first MKV chunk and patches audio default flags:
+    - Hollywood / Dual Audio: Sets English audio FlagDefault=1 and FlagEnabled=1, Hindi audio FlagDefault=0.
+    - Bollywood: Preserves Hindi audio default.
+    Zero audio/video re-encoding and zero byte length change.
+    """
+    if is_bollywood:
+        return first_chunk
+
+    tracks_idx = find_mkv_tracks_element(first_chunk)
+    if tracks_idx == -1:
+        return first_chunk
+
+    pos = tracks_idx + 4
+    first_ae = first_chunk.find(b'\xae', pos, pos + 30)
+    if first_ae == -1:
+        return first_chunk
+
+    curr = first_ae
+    entries = []
+    chunk_len = len(first_chunk)
+
+    while curr != -1 and curr < chunk_len - 20:
+        if first_chunk[curr] != 0xae:
+            break
+        vint_first = first_chunk[curr + 1]
+        size = None
+        size_len = 0
+        for mask_len in range(1, 9):
+            mask = 1 << (8 - mask_len)
+            if vint_first & mask:
+                size_len = mask_len
+                raw_val = vint_first & (mask - 1)
+                for b_idx in range(1, size_len):
+                    raw_val = (raw_val << 8) | first_chunk[curr + 1 + b_idx]
+                size = raw_val
+                break
+        if size is None or size <= 0:
+            break
+        entry_start = curr
+        entry_end = curr + 1 + size_len + size
+        entries.append((entry_start, entry_end, size_len))
+        curr = entry_end
+        if curr < chunk_len and first_chunk[curr] == 0xec:
+            v_first = first_chunk[curr + 1]
+            for mask_len in range(1, 9):
+                mask = 1 << (8 - mask_len)
+                if v_first & mask:
+                    v_size_len = mask_len
+                    v_val = v_first & (mask - 1)
+                    for b_idx in range(1, v_size_len):
+                        v_val = (v_val << 8) | first_chunk[curr + 1 + b_idx]
+                    curr = curr + 1 + v_size_len + v_val
+                    break
+
+    for start, end, _ in entries:
+        chunk = first_chunk[start:end]
+        tt_pos = chunk.find(b'\x83\x81')
+        if tt_pos == -1 or chunk[tt_pos + 2] != 2:  # 2 = Audio
+            continue
+
+        lang = "und"
+        if b'"\xb5\x9d\x82en' in chunk or b'"\xb5\x9c\x83eng' in chunk or b'English' in chunk or b'english' in chunk:
+            lang = "eng"
+        elif b'"\xb5\x9d\x82hi' in chunk or b'"\xb5\x9c\x83hin' in chunk or b'Hindi' in chunk or b'hindi' in chunk:
+            lang = "hin"
+
+        fd_offset = chunk.find(b'\x88\x81')
+        fe_offset = chunk.find(b'\xb9\x81')
+
+        if not is_bollywood:
+            if lang == "eng":
+                if fe_offset != -1 and first_chunk[start + fe_offset + 2] == 0:
+                    first_chunk[start + fe_offset + 2] = 1
+                    logger.info(f"Patched MKV on-the-fly: English audio FlagEnabled -> 1 (offset {start + fe_offset + 2})")
+                if fd_offset != -1:
+                    first_chunk[start + fd_offset + 2] = 1
+                    logger.info(f"Patched MKV on-the-fly: English audio FlagDefault -> 1 (offset {start + fd_offset + 2})")
+            elif lang == "hin":
+                if fd_offset != -1:
+                    first_chunk[start + fd_offset + 2] = 0
+                    logger.info(f"Patched MKV on-the-fly: Hindi audio FlagDefault -> 0 (offset {start + fd_offset + 2})")
+                else:
+                    hin_lang_tag = b'\x22\xb5\x9c\x83hin'
+                    hl_offset = chunk.find(hin_lang_tag)
+                    if hl_offset != -1:
+                        abs_pos = start + hl_offset
+                        first_chunk[abs_pos:abs_pos+7] = b'\x88\x81\x00\xec\x82\x00\x00'
+                        logger.info(f"Patched MKV on-the-fly: Hindi audio injected FlagDefault -> 0 (offset {abs_pos})")
+
+    return first_chunk
+
+
+def stream_mkv_with_auto_audio(
+    r2_url: str,
+    is_bollywood: bool = False,
+    range_header: Optional[str] = None
+) -> Tuple[Any, int, dict]:
+    """
+    Streams MKV video file chunks from Cloudflare R2 to client.
+    Automatically patches the first 64KB chunk on the fly so that:
+    - English is the default audio track for Hollywood/Dual Audio.
+    - Hindi is the default audio track for Bollywood.
+    Zero manual configuration required in any media player.
+    """
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
+    if range_header:
+        headers['Range'] = range_header
+
+    req = urllib.request.Request(r2_url, headers=headers)
+    upstream = urllib.request.urlopen(req, context=ctx, timeout=30)
+
+    status = upstream.status
+    content_length = upstream.headers.get('Content-Length')
+    content_range = upstream.headers.get('Content-Range')
+    content_type = upstream.headers.get('Content-Type', 'video/x-matroska')
+
+    resp_headers = {
+        'Content-Type': content_type,
+        'Accept-Ranges': 'bytes'
+    }
+    if content_length:
+        resp_headers['Content-Length'] = content_length
+    if content_range:
+        resp_headers['Content-Range'] = content_range
+
+    def generate():
+        starts_at_zero = not range_header or range_header.startswith('bytes=0-')
+        if starts_at_zero and not is_bollywood:
+            first_chunk = bytearray(upstream.read(65536))
+            patched = patch_mkv_header_bytes(first_chunk, is_bollywood=False)
+            yield bytes(patched)
+
+        while True:
+            chunk = upstream.read(1048576) # 1 MB
+            if not chunk:
+                break
+            yield chunk
+
+    return generate(), status, resp_headers
+
+

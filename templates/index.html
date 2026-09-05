@@ -311,6 +311,8 @@
     <h2 class="netflix-row-title">
       {% if query %}
         Featured Matches for "{{ query }}"
+      {% elif genre == 'Series' %}
+        Featured TV & Web Series 2026
       {% elif genre and genre != 'All' %}
         Featured {{ genre }} 2026 Releases
       {% else %}
@@ -335,14 +337,30 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
-          <span class="netflix-card-badge">{{ genre if genre and genre != 'All' else '2026' }}</span>
+          <span class="netflix-card-badge">
+            {% if genre == 'Series' or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
+              Series
+            {% elif genre and genre != 'All' %}
+              {{ genre }}
+            {% else %}
+              {{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}
+            {% endif %}
+          </span>
         </div>
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
             <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.8' }}</span>
             <span>2026</span>
-            <span class="quality">HD</span>
+            <span class="quality">
+              {% if 'season 2' in (m.title ~ ' ' ~ m.description)|lower %}
+                Season 2
+              {% elif 'season' in (m.title ~ ' ' ~ m.description)|lower or genre == 'Series' %}
+                Season 1
+              {% else %}
+                HD
+              {% endif %}
+            </span>
           </div>
         </div>
       </a>
@@ -367,8 +385,10 @@
     <h2 class="netflix-row-title">
       {% if query %}
         Search Results for "{{ query }}" ({{ pagination.total }} titles)
+      {% elif genre == 'Series' %}
+        TV & Web Series 2026 ({{ pagination.total }} titles)
       {% elif genre and genre != 'All' %}
-        {{ genre }} 2026 Movies & Series ({{ pagination.total }} titles)
+        {{ genre }} 2026 Releases ({{ pagination.total }} titles)
       {% elif status == 'available' %}
         Direct Downloads Available ({{ pagination.total }} titles)
       {% else %}
@@ -390,14 +410,30 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
-          <span class="netflix-card-badge">{{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}</span>
+          <span class="netflix-card-badge">
+            {% if genre == 'Series' or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
+              Series
+            {% elif genre and genre != 'All' %}
+              {{ genre }}
+            {% else %}
+              {{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}
+            {% endif %}
+          </span>
         </div>
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
             <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.7' }}</span>
             <span>2026</span>
-            <span class="quality">Direct</span>
+            <span class="quality">
+              {% if 'season 2' in (m.title ~ ' ' ~ m.description)|lower %}
+                Season 2
+              {% elif 'season' in (m.title ~ ' ' ~ m.description)|lower or genre == 'Series' %}
+                Season 1
+              {% else %}
+                Direct
+              {% endif %}
+            </span>
           </div>
         </div>
       </a>

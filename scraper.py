@@ -380,9 +380,12 @@ class MWLBDScraper:
                 elif "hindi" in title_lower and not any(k in title_lower for k in ['org & eng', 'org & tamil', 'org & telugu', 'org & korean']):
                     detected_genres.append("Bollywood Hindi")
 
-                for kw, g in [("action", "Action"), ("adventure", "Adventure"), ("horror", "Horror"), ("comedy", "Comedy"), ("drama", "Drama"), ("crime", "Crime"), ("thriller", "Thriller"), ("series", "TV Series"), ("anime", "Anime")]:
+                for kw, g in [("action", "Action"), ("adventure", "Adventure"), ("horror", "Horror"), ("comedy", "Comedy"), ("drama", "Drama"), ("crime", "Crime"), ("thriller", "Thriller"), ("anime", "Anime")]:
                     if kw in title_lower and g not in detected_genres:
                         detected_genres.append(g)
+
+                if re.search(r'\b(season\s*\d+|s0?\d|episode)\b', title_lower) and "TV Series" not in detected_genres:
+                    detected_genres.append("TV Series")
                         
                 genre = ", ".join(detected_genres) if detected_genres else "General"
 
@@ -611,6 +614,11 @@ class MWLBDScraper:
                     t = g.text.strip()
                     if t and not any(res in t for res in ['1080p', '4K', '720p', 'HEVC', 'Full HD', '2K']):
                         genre_tags.append(t)
+        if 'TV/WEB Series' in genre_tags:
+            combined = f"{clean_title} {raw_title} {movie_url}".lower()
+            if not re.search(r'\b(season\s*\d+|s0?\d|episode)\b', combined):
+                genre_tags = [gt for gt in genre_tags if gt != 'TV/WEB Series']
+
         genre = ", ".join(dict.fromkeys(genre_tags)) if genre_tags else "General"
 
         # 5. Director & Cast

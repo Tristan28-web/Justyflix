@@ -141,6 +141,31 @@ def is_2026_or_future(movie: Dict[str, Any]) -> bool:
     return False
 
 
+def is_series(movie: Dict[str, Any]) -> bool:
+    """
+    Accurately identifies whether an item is a TV Series / Web Series.
+    Strictly distinguishes episodic TV/Web series from feature films and superhero movies.
+    """
+    if not movie:
+        return False
+
+    title = str(movie.get("title", "")).strip()
+    desc = str(movie.get("description", "")).strip()
+    url = str(movie.get("source_url") or movie.get("url", "")).strip()
+    combined = f"{title} {desc} {url}".lower()
+
+    # 1. Obvious movie keywords that are NOT series
+    if re.search(r'\b(the movie|a movie|the immortal man|one last kill|special presentation)\b', combined):
+        if not re.search(r'\b(season\s*\d+|s0?\d|episode)\b', combined):
+            return False
+
+    # 2. Positive matches: explicit Season / Episode markers
+    if re.search(r'\b(season\s*\d+|s0?\d+|episode\s*\d+|episodes|complete\s*(series|season))\b', combined):
+        return True
+
+    return False
+
+
 class JSONDatabase:
     """Thread-safe JSON Database for storing movie metadata with automatic backup."""
 
@@ -432,9 +457,13 @@ class JSONDatabase:
                 elif g_lower == 'anime':
                     movie_list = [m for m in movie_list if any(x in m.get("genre", "").lower() for x in ['anime', 'animation', 'cartoon'])]
                 elif g_lower in ('series', 'tv shows', 'tv series'):
-                    movie_list = [m for m in movie_list if any(x in m.get("genre", "").lower() for x in ['series', 'tv show', 'tv/web series']) or 'season' in m.get("title", "").lower() or 'season' in m.get("description", "").lower()]
+                    movie_list = [m for m in movie_list if is_series(m)]
+                elif g_lower in ('movies', 'movie'):
+                    movie_list = [m for m in movie_list if not is_series(m)]
                 elif g_lower == 'dual audio':
                     movie_list = [m for m in movie_list if 'dual audio' in m.get("genre", "").lower() or 'dual audio' in m.get("description", "").lower() or 'dual' in m.get("title", "").lower()]
+                elif g_lower in ('action', 'adventure', 'comedy', 'crime', 'drama', 'horror', 'thriller'):
+                    movie_list = [m for m in movie_list if g_lower in m.get("genre", "").lower()]
                 else:
                     movie_list = [m for m in movie_list if any(g_lower in t.strip().lower() for t in m.get("genre", "").split(','))]
 
@@ -478,6 +507,7 @@ class JSONDatabase:
 
         return {
             "items": items,
+            "total": total_items,
             "total_items": total_items,
             "total_pages": total_pages,
             "current_page": page,

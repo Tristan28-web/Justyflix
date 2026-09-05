@@ -1,0 +1,346 @@
+import re
+import json
+import base64
+import time
+import threading
+import urllib.request
+import urllib.parse
+from typing import Dict, Any, Optional
+from bs4 import BeautifulSoup
+from config import setup_logger
+
+logger = setup_logger('download_resolver')
+
+# Standard browser headers
+HEADERS = {
+    'User-Agent': (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+        'AppleWebKit/537.36 (KHTML, like Gecko) '
+        'Chrome/124.0.0.0 Safari/537.36'
+    ),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9'
+}
+
+
+class DownloadCache:
+    """Thread-safe in-memory cache with TTL for resolved direct download URLs."""
+    
+    def __init__(self, default_ttl_seconds: int = 10800):  # 3 hours default
+        self._cache: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.Lock()
+        self.default_ttl = default_ttl_seconds
+
+    def get(self, key: str) -> Optional[Dict[str, Any]]:
+        with self._lock:
+            entry = self._cache.get(key)
+            if entry:
+                if time.time() < entry['expires_at']:
+                    return entry['data']
+                else:
+                    del self._cache[key]
+            return None
+
+    def set(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None) -> None:
+        with self._lock:
+            ttl_val = ttl if ttl is not None else self.default_ttl
+            self._cache[key] = {
+                'data': data,
+                'expires_at': time.time() + ttl_val
+            }
+
+
+# Global cache instance
+download_cache = DownloadCache()
+
+
+def resolve_movie_direct_download(
+    source_url: str,
+    target_quality: str = "1080p",
+    fallback_url: str = "",
+    file_id: str = "",
+    timeout: int = 12
+) -> Dict[str, Any]:
+    """
+    Resolves a movie's quality download link to its direct Cloudflare R2 CDN download URL.
+    Returns:
+        {
+            "success": bool,
+            "download_url": str,
+            "filename": str,
+            "quality": str,
+            "source": str,
+            "error": Optional[str]
+        }
+    """
+    cache_key = f"{source_url}:{target_quality}:{file_id}"
+    cached = download_cache.get(cache_key)
+    if cached:
+        logger.info(f"Returning cached direct download URL for {cache_key}")
+        return cached
+
+    logger.info(f"Resolving direct download for {source_url} ({target_quality})")
+
+    # If fallback is already a direct drive or file link, use it
+    if fallback_url and ('drive.google.com' in fallback_url or 'r2.cloudflarestorage.com' in fallback_url):
+        res = {
+            "success": True,
+            "download_url": fallback_url,
+            "filename": f"movie_{target_quality}.mkv",
+            "quality": target_quality,
+            "source": "Direct Link",
+            "error": None
+        }
+        download_cache.set(cache_key, res)
+        return res
+
+    try:
+        # Step 1: Fetch source movie page
+        req1 = urllib.request.Request(source_url, headers=HEADERS)
+        html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')
+        soup1 = BeautifulSoup(html1, 'html.parser')
+
+        # Find form matching file_id or target quality
+        target_form = None
+        if file_id:
+            target_form = soup1.find('form', {'id': file_id})
+        
+        # Parse resolution token and HEVC flag for precise quality matching
+        res_m = re.search(r'\b(2160p|1080p|720p|480p|360p|4k)\b', target_quality, re.I)
+        res_token = res_m.group(1).lower() if res_m else target_quality.lower()
+        is_hevc = 'hevc' in target_quality.lower()
+
+        if not target_form:
+            best_tr_form = None
+            for tr in soup1.find_all('tr'):
+                txt = tr.get_text().lower()
+                if res_token in txt:
+                    f = tr.find('form')
+                    if f and f.find('input', {'name': 'FU'}):
+                        if is_hevc and 'hevc' in txt:
+                            target_form = f
+                            break
+                        if not best_tr_form:
+                            best_tr_form = f
+            if not target_form and best_tr_form:
+                target_form = best_tr_form
+
+        if not target_form:
+            # Fallback to any form with FU
+            for f in soup1.find_all('form'):
+                if f.find('input', {'name': 'FU'}):
+                    target_form = f
+                    break
+
+        if not target_form:
+            raise Exception("No download form found on movie page.")
+
+        action1 = target_form.get('action') or "https://search.technews24.site/blog.php"
+        inputs1 = {inp.get('name'): inp.get('value') for inp in target_form.find_all('input')}
+
+        # Step 2: POST to blog.php
+        req2 = urllib.request.Request(
+            action1,
+            data=urllib.parse.urlencode(inputs1).encode('utf-8'),
+            headers={**HEADERS, 'Referer': source_url, 'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        html2 = urllib.request.urlopen(req2, timeout=timeout).read().decode('utf-8', errors='ignore')
+        soup2 = BeautifulSoup(html2, 'html.parser')
+        form2 = soup2.find('form')
+        if not form2:
+            raise Exception("Step 2: Verification form not found on blog.php.")
+        action2 = form2.get('action')
+        inputs2 = {inp.get('name'): inp.get('value') for inp in form2.find_all('input')}
+
+        # Step 3: POST to sharelink-1.shop/dld2.php
+        req3 = urllib.request.Request(
+            action2,
+            data=urllib.parse.urlencode(inputs2).encode('utf-8'),
+            headers={**HEADERS, 'Referer': action1, 'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        html3 = urllib.request.urlopen(req3, timeout=timeout).read().decode('utf-8', errors='ignore')
+        soup3 = BeautifulSoup(html3, 'html.parser')
+        form3 = soup3.find('form')
+        if not form3:
+            raise Exception("Step 3: Verification form not found on sharelink-1.")
+        action3 = form3.get('action')
+        inputs3 = {inp.get('name'): inp.get('value') for inp in form3.find_all('input')}
+
+        # Step 4: POST to freethemesy.shop/dld2.php
+        req4 = urllib.request.Request(
+            action3,
+            data=urllib.parse.urlencode(inputs3).encode('utf-8'),
+            headers={**HEADERS, 'Referer': action2, 'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        html4 = urllib.request.urlopen(req4, timeout=timeout).read().decode('utf-8', errors='ignore')
+
+        sss_m = re.search(r"var sss\s*=\s*'([^']+)'", html4)
+        if not sss_m:
+            raise Exception("Step 4: Token not found in verification page.")
+        sss_val = sss_m.group(1)
+        v_literal = re.search(r"'([a-f0-9]{13})'", html4)
+        v_val = v_literal.group(1) if v_literal else "6a9be278aa0a3"
+
+        # Step 5: freethemesy API call -> links page
+        req5 = urllib.request.Request(
+            "https://freethemesy.shop/new/l/api/m",
+            data=urllib.parse.urlencode({'s': sss_val, 'v': v_val}).encode('utf-8'),
+            headers={
+                **HEADERS,
+                'Referer': action3,
+                'Origin': 'https://freethemesy.shop',
+                'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        )
+        links_page_url = urllib.request.urlopen(req5, timeout=timeout).read().decode('utf-8').strip()
+
+        # Step 6: Fetch links page & select matching GDS quality link
+        req6 = urllib.request.Request(links_page_url, headers={**HEADERS, 'Referer': 'https://freethemesy.shop/'})
+        html6 = urllib.request.urlopen(req6, timeout=timeout).read().decode('utf-8', errors='ignore')
+        soup6 = BeautifulSoup(html6, 'html.parser')
+
+        chosen_gds_url = None
+        best_gds_url = None
+        for p in soup6.find_all('p'):
+            p_text = p.get_text().lower()
+            if res_token in p_text:
+                for a in p.find_all('a'):
+                    if a.get_text().strip().upper() == 'GDS' and a.get('href'):
+                        if is_hevc and 'hevc' in p_text:
+                            chosen_gds_url = a.get('href')
+                            break
+                        if not best_gds_url:
+                            best_gds_url = a.get('href')
+                if chosen_gds_url:
+                    break
+
+        if not chosen_gds_url and best_gds_url:
+            chosen_gds_url = best_gds_url
+
+        if not chosen_gds_url:
+            for a in soup6.find_all('a'):
+                if a.get_text().strip().upper() == 'GDS' and a.get('href'):
+                    chosen_gds_url = a.get('href')
+                    break
+
+        if not chosen_gds_url:
+            raise Exception("Step 6: Direct server link not available for this title.")
+
+        # Step 7: Resolve GDS link to Cloudflare R2
+        req7a = urllib.request.Request(chosen_gds_url, headers={**HEADERS, 'Referer': links_page_url})
+        soup7a = BeautifulSoup(urllib.request.urlopen(req7a, timeout=timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
+        form7a = soup7a.find('form')
+        if not form7a:
+            raise Exception("Step 7a: Destination form not found.")
+
+        action7a = form7a.get('action')
+        inputs7a = {inp.get('name'): inp.get('value') for inp in form7a.find_all('input')}
+
+        req7b = urllib.request.Request(
+            action7a,
+            data=urllib.parse.urlencode(inputs7a).encode('utf-8'),
+            headers={**HEADERS, 'Referer': chosen_gds_url, 'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        soup7b = BeautifulSoup(urllib.request.urlopen(req7b, timeout=timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
+        form7b = soup7b.find('form')
+        if not form7b:
+            raise Exception("Step 7b: Routing form not found.")
+        action7b = form7b.get('action')
+        inputs7b = {inp.get('name'): inp.get('value') for inp in form7b.find_all('input')}
+
+        req7c = urllib.request.Request(
+            action7b,
+            data=urllib.parse.urlencode(inputs7b).encode('utf-8'),
+            headers={**HEADERS, 'Referer': action7a, 'Content-Type': 'application/x-www-form-urlencoded'}
+        )
+        html7c = urllib.request.urlopen(req7c, timeout=timeout).read().decode('utf-8', errors='ignore')
+
+        sss_m2 = re.search(r"var sss\s*=\s*'([^']+)'", html7c)
+        vurl_m2 = re.search(r"var vurl\s*=\s*atob\('([^']+)'\)", html7c)
+        v_m2 = re.search(r"v:\s*'([^']+)'", html7c)
+        if not (sss_m2 and vurl_m2 and v_m2):
+            raise Exception("Step 7c: Link tokens not found on CDN router.")
+
+        s3_sss = sss_m2.group(1)
+        raw_b64 = vurl_m2.group(1)
+        s3_vurl = base64.b64decode(raw_b64 + '=' * (-len(raw_b64) % 4)).decode('utf-8')
+        s3_v = v_m2.group(1)
+
+        api7_url = urllib.parse.urljoin(action7b, s3_vurl)
+        req7d = urllib.request.Request(
+            api7_url,
+            data=json.dumps({'s': s3_sss, 'v': s3_v}).encode('utf-8'),
+            headers={
+                **HEADERS,
+                'Referer': action7b,
+                'Origin': action7b[:action7b.find('/', 8)],
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        )
+        boa_url = urllib.request.urlopen(req7d, timeout=timeout).read().decode('utf-8').strip()
+
+        # Step 7e: Submit clouddownload on boabd
+        req7e = urllib.request.Request(
+            boa_url,
+            data=urllib.parse.urlencode({'clouddownload': ''}).encode('utf-8'),
+            headers={
+                **HEADERS,
+                'Referer': boa_url,
+                'Origin': 'https://boabd.com',
+                'Content-Type': 'application/x-www-form-urlencoded'
+            }
+        )
+        soup7e = BeautifulSoup(urllib.request.urlopen(req7e, timeout=15).read().decode('utf-8', errors='ignore'), 'html.parser')
+
+        for a in soup7e.find_all('a'):
+            href = a.get('href', '')
+            if 'r2.cloudflarestorage.com' in href:
+                fn_match = re.search(r'filename%3D%22([^%"]+)%22', href) or re.search(r'filename="([^"]+)"', href)
+                filename = urllib.parse.unquote(fn_match.group(1)) if fn_match else f"Movie_{target_quality}.mkv"
+                res = {
+                    "success": True,
+                    "download_url": href,
+                    "filename": filename,
+                    "quality": target_quality,
+                    "source": "Cloudflare R2 High-Speed CDN",
+                    "error": None
+                }
+                download_cache.set(cache_key, res)
+                logger.info(f"Successfully resolved direct R2 URL: {filename}")
+                return res
+
+        raise Exception("Direct R2 CDN link not generated on storage server.")
+
+    except Exception as ex:
+        logger.error(f"Download resolution error for {source_url} ({target_quality}): {ex}")
+        # Fallback to direct GDrive download if file_id exists
+        if file_id and file_id.isalnum() and len(file_id) > 15:
+            fallback = f"https://drive.google.com/uc?export=download&confirm=t&id={file_id}"
+            return {
+                "success": True,
+                "download_url": fallback,
+                "filename": f"movie_{target_quality}.mkv",
+                "quality": target_quality,
+                "source": "Google Drive Direct Stream",
+                "error": None
+            }
+        elif fallback_url and fallback_url != "https://search.technews24.site/blog.php":
+            return {
+                "success": True,
+                "download_url": fallback_url,
+                "filename": f"movie_{target_quality}.mkv",
+                "quality": target_quality,
+                "source": "Direct Source",
+                "error": None
+            }
+        return {
+            "success": False,
+            "download_url": fallback_url or source_url,
+            "filename": f"movie_{target_quality}.mkv",
+            "quality": target_quality,
+            "source": "None",
+            "error": str(ex)
+        }

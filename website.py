@@ -6,6 +6,7 @@ from flask_cors import CORS
 from config import Config, setup_logger
 from database import db
 from scraper import MWLBDScraper
+from download_resolver import resolve_movie_direct_download
 
 logger = setup_logger('website')
 
@@ -235,6 +236,86 @@ def movie_detail(movie_id):
             logger.warning(f"On-demand detail scrape failed for {movie_id}: {ex}")
 
     return render_template('movie_detail.html', movie=movie, categories=MWLBD_CATEGORIES)
+
+
+@app.route('/download/<movie_id>/<int:link_idx>')
+def download_movie(movie_id, link_idx):
+    """
+    Direct high-speed download route. Resolves intermediate tokens to the
+    Cloudflare R2 / Google Drive CDN direct download URL and redirects (302)
+    so the video file is directly downloaded to the user's PC.
+    """
+    movie = db.get_movie(movie_id)
+    if not movie:
+        abort(404)
+
+    links = movie.get('download_links', [])
+    if not links or link_idx < 0 or link_idx >= len(links):
+        return redirect(url_for('movie_detail', movie_id=movie_id))
+
+    target_link = links[link_idx]
+    quality = target_link.get('quality') or target_link.get('label') or '1080p'
+    source_url = movie.get('source_url') or target_link.get('url', '')
+    fallback_url = target_link.get('url') or target_link.get('original_url', '')
+    file_id = target_link.get('file_id', '')
+
+    res = resolve_movie_direct_download(
+        source_url=source_url,
+        target_quality=quality,
+        fallback_url=fallback_url,
+        file_id=file_id
+    )
+
+    if res.get('success') and res.get('download_url'):
+        return redirect(res['download_url'], code=302)
+
+    # Fallback to original url
+    return redirect(fallback_url or source_url)
+
+
+@app.route('/api/resolve-download/<movie_id>/<int:link_idx>', methods=['GET'])
+def api_resolve_download(movie_id, link_idx):
+    """
+    AJAX endpoint for instant download preparation with frontend spinner.
+    Returns direct CDN URL with Content-Disposition for local PC download.
+    """
+    movie = db.get_movie(movie_id)
+    if not movie:
+        return jsonify({"status": "error", "message": "Movie not found"}), 404
+
+    links = movie.get('download_links', [])
+    if not links or link_idx < 0 or link_idx >= len(links):
+        return jsonify({"status": "error", "message": "Download link not found"}), 404
+
+    target_link = links[link_idx]
+    quality = target_link.get('quality') or target_link.get('label') or '1080p'
+    source_url = movie.get('source_url') or target_link.get('url', '')
+    fallback_url = target_link.get('url') or target_link.get('original_url', '')
+    file_id = target_link.get('file_id', '')
+
+    res = resolve_movie_direct_download(
+        source_url=source_url,
+        target_quality=quality,
+        fallback_url=fallback_url,
+        file_id=file_id
+    )
+
+    if res.get('success') and res.get('download_url'):
+        return jsonify({
+            "status": "success",
+            "download_url": res['download_url'],
+            "filename": res.get('filename', f"{movie.get('title', 'Movie')}_{quality}.mkv"),
+            "quality": quality,
+            "source": res.get('source', 'Cloudflare R2 High-Speed CDN')
+        }), 200
+    else:
+        return jsonify({
+            "status": "fallback",
+            "download_url": fallback_url or source_url,
+            "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
+            "quality": quality,
+            "message": res.get('error', 'Using direct fallback stream.')
+        }), 200
 
 
 @app.route('/scrape')

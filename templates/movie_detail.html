@@ -118,17 +118,19 @@
         <!-- Download Buttons -->
         <div class="d-flex gap-2 align-items-center flex-wrap">
           <a
-            href="{{ link.url }}"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn-gdrive-direct"
+            href="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0) }}"
+            class="btn-gdrive-direct js-download-btn"
+            data-movie-id="{{ movie.id }}"
+            data-link-idx="{{ loop.index0 }}"
+            data-quality="{{ link.quality or 'Direct' }}"
+            download
           >
             <i class="bi bi-download"></i> Download {{ link.quality or 'Direct' }}
           </a>
           <button
             type="button"
             class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
-            data-link="{{ link.url }}"
+            data-link="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0, _external=True) }}"
             title="Copy Direct Link"
           >
             <i class="bi bi-clipboard"></i>
@@ -161,4 +163,56 @@
   </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const downloadBtns = document.querySelectorAll('.js-download-btn');
+  downloadBtns.forEach(btn => {
+    btn.addEventListener('click', async function(e) {
+      e.preventDefault();
+      const movieId = this.getAttribute('data-movie-id');
+      const linkIdx = this.getAttribute('data-link-idx');
+      const quality = this.getAttribute('data-quality');
+      const originalHtml = this.innerHTML;
+
+      // Visual loading state
+      this.disabled = true;
+      this.style.pointerEvents = 'none';
+      this.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Preparing ${quality} Download...`;
+
+      try {
+        const resp = await fetch(`/api/resolve-download/${movieId}/${linkIdx}`);
+        const data = await resp.json();
+
+        if (data.download_url) {
+          this.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality} to PC!`;
+          
+          // Trigger immediate browser file download to local PC
+          const tempAnchor = document.createElement('a');
+          tempAnchor.href = data.download_url;
+          tempAnchor.setAttribute('download', data.filename || '');
+          tempAnchor.style.display = 'none';
+          document.body.appendChild(tempAnchor);
+          tempAnchor.click();
+          document.body.removeChild(tempAnchor);
+
+          setTimeout(() => {
+            this.innerHTML = originalHtml;
+            this.disabled = false;
+            this.style.pointerEvents = 'auto';
+          }, 3500);
+        } else {
+          // Fallback to direct navigation
+          window.location.href = `/download/${movieId}/${linkIdx}`;
+        }
+      } catch (err) {
+        console.warn('API download resolve error, falling back to direct route:', err);
+        window.location.href = `/download/${movieId}/${linkIdx}`;
+      }
+    });
+  });
+});
+</script>
 {% endblock %}

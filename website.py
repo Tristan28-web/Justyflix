@@ -227,13 +227,53 @@ def home():
         s = re.sub(r'direct ready', 'instant ready', s, flags=re.IGNORECASE)
         return s.strip()
 
+    def enrich_movie(m):
+        m_copy = dict(m)
+        scraped = m_copy.get('scraped_at')
+        formatted_date = None
+        if scraped:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(scraped)
+                formatted_date = dt.strftime('%b. %d, %Y')
+            except Exception:
+                pass
+        if not formatted_date:
+            yr = m_copy.get('year', '2026')
+            formatted_date = f"Sep. 04, {yr}" if yr else "2026"
+        m_copy['formatted_date'] = formatted_date
+
+        t = (m_copy.get('title') or '') + ' ' + (m_copy.get('description') or '')
+        g = (m_copy.get('genre') or '')
+        t_lower = t.lower()
+        g_lower = g.lower()
+
+        if 'dual audio' in t_lower or 'dual audio' in g_lower:
+            tag = 'Dual Audio ORG'
+        elif 'season' in t_lower or 'series' in g_lower:
+            tag = 'Series [HD]'
+        elif 'hindi org' in t_lower or 'hindi dub' in t_lower:
+            tag = 'Hindi Dub [HD]'
+        elif 'pre-hdrip' in t_lower:
+            tag = 'PRE-HDRip'
+        elif 'pre-hd' in t_lower:
+            tag = 'PRE-HD [Hindi]'
+        elif 'hindi' in t_lower or 'bollywood' in g_lower:
+            tag = 'PRE-HD [Hindi]'
+        elif 'hollywood' in g_lower or 'english' in t_lower:
+            tag = 'WEB-DL [HD]'
+        else:
+            tag = 'WEB-DL [HD]'
+        m_copy['quality_tag'] = tag
+        return m_copy
+
     featured_movies = []
     seen_titles = set()
     for candidate in all_movies:
         t = candidate.get("title", "").strip()
         poster = candidate.get("poster")
         if poster and t not in seen_titles:
-            c_copy = dict(candidate)
+            c_copy = enrich_movie(candidate)
             c_copy["clean_description"] = sanitize_synopsis(c_copy.get("description", ""), t)
             featured_movies.append(c_copy)
             seen_titles.add(t)
@@ -241,18 +281,17 @@ def home():
                 break
 
     if not featured_movies and all_movies:
-        featured_movies = [dict(m, clean_description=sanitize_synopsis(m.get("description", ""), m.get("title", ""))) for m in all_movies[:5]]
+        featured_movies = [enrich_movie(dict(m, clean_description=sanitize_synopsis(m.get("description", ""), m.get("title", "")))) for m in all_movies[:5]]
 
     featured_movie = featured_movies[0] if featured_movies else None
 
-    is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home'))
+    # Curate Featured Carousel Movies (20 titles with poster)
+    featured_carousel_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:20]
 
-    # Curate Content Rows for homepage using accurate database genre filters
-    trending_movies = all_movies[:18]
-    hollywood_movies = db.get_all_movies(genre='Hollywood')[:18]
-    bollywood_movies = db.get_all_movies(genre='Bollywood')[:18]
-    dual_audio_movies = db.get_all_movies(genre='Dual Audio')[:18]
-    series_movies = db.get_all_movies(genre='Series')[:18]
+    # Enrich paginated items for Latest Movies Grid
+    pagination["items"] = [enrich_movie(m) for m in pagination["items"]]
+
+    is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home'))
 
     return render_template(
         'index.html',
@@ -267,11 +306,7 @@ def home():
         is_filtered=is_filtered,
         featured_movie=featured_movie,
         featured_movies=featured_movies,
-        trending_movies=trending_movies,
-        hollywood_movies=hollywood_movies,
-        bollywood_movies=bollywood_movies,
-        dual_audio_movies=dual_audio_movies,
-        series_movies=series_movies,
+        featured_carousel_movies=featured_carousel_movies,
         netflix_genres=NETFLIX_GENRES,
         categories=MWLBD_CATEGORIES
     )

@@ -588,6 +588,182 @@ body {
 }
 
 /* ==========================================================================
+   FEATURED & LATEST MOVIES SECTION HEADERS & BADGES (SAMPLE MATCH)
+   ========================================================================== */
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.15rem;
+  padding-bottom: 0.2rem;
+}
+
+.section-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.section-accent-bar {
+  display: inline-block;
+  width: 3.5px;
+  height: 1.45rem;
+  background-color: var(--netflix-red);
+  border-radius: 2px;
+}
+
+.section-title-text {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.2px;
+  margin: 0;
+  line-height: 1.2;
+}
+
+/* Header Caret Controls (< >) for Featured Carousel (Image 1) */
+.featured-arrows-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.featured-arrow-btn {
+  background: #181818;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #888888;
+  width: 30px;
+  height: 30px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.featured-arrow-btn:hover {
+  background: #282828;
+  color: #ffffff;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* SEE ALL Red Button for Latest Movies (Image 2) */
+.btn-see-all-red {
+  background-color: var(--netflix-red);
+  color: #ffffff !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 0.32rem 0.85rem;
+  border-radius: 3px;
+  text-decoration: none !important;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+}
+
+.btn-see-all-red:hover {
+  background-color: var(--netflix-red-hover);
+  transform: translateY(-1px);
+}
+
+/* Image 1: FEATURE Red Badge */
+.badge-feature-red {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: var(--netflix-red);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0 0 4px 0;
+  z-index: 5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+
+/* Image 2: Quality Tag Red Badge (e.g. Dual Audio ORG, PRE-HD [Hindi]) */
+.badge-quality-tag {
+  position: absolute;
+  top: 0;
+  left: 0;
+  background-color: var(--netflix-red);
+  color: #ffffff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0 0 4px 0;
+  z-index: 5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+/* Star Rating Badge on Bottom-Right of Poster */
+.badge-corner-rating {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  background: rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.15rem 0.4rem;
+  border-radius: 3px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  z-index: 5;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+.badge-corner-rating i {
+  color: #fbbf24;
+  font-size: 0.7rem;
+}
+
+/* Card Bottom Metadata Lines (Icon + Title, Date/Year) */
+.sample-card-title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin-top: 0.5rem;
+  margin-bottom: 0.18rem;
+  line-height: 1.25;
+}
+
+.sample-card-title-line .icon {
+  color: #888888;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+.sample-card-title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+  flex: 1;
+}
+
+.sample-card-subtext {
+  font-size: 0.78rem;
+  color: #888888;
+  font-weight: 500;
+}
+
+/* ==========================================================================
    HORIZONTAL MOVIE CAROUSEL ROWS
    ========================================================================== */
 

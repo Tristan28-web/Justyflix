@@ -102,114 +102,28 @@
 
 
 <!-- ==========================================================================
-     HORIZONTAL MOVIE CAROUSELS (JUSTYFLIX SLIDERS WITH ARROWS)
+     SECTION 1: FEATURED CAROUSEL (IMAGE 1 SAMPLE MATCH)
      ========================================================================== -->
-{% if not is_filtered %}
-
-<!-- Row 1: Trending 2026 Releases -->
-{% if trending_movies %}
-<section class="netflix-row">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">Trending 2026 Releases</h2>
-  </div>
-
-  <div class="netflix-carousel-container">
-    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-trending', -600)">
-      <i class="bi bi-chevron-left"></i>
-    </button>
-
-    <div class="netflix-carousel" id="carousel-trending">
-      {% for m in trending_movies %}
-      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
-        <div class="netflix-poster-box">
-          <img
-            src="{{ m.poster }}"
-            alt="{{ m.title }}"
-            class="netflix-poster-img"
-            loading="lazy"
-            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
-          >
-          <span class="netflix-card-badge">2026</span>
-        </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.2' }}</span>
-            <span>2026</span>
-            <span class="quality">1080p</span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
+{% if not is_filtered and featured_carousel_movies %}
+<section class="netflix-row featured-section">
+  <div class="section-header-row">
+    <div class="section-title-wrap">
+      <span class="section-accent-bar"></span>
+      <h2 class="section-title-text">Featured</h2>
     </div>
-
-    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-trending', 600)">
-      <i class="bi bi-chevron-right"></i>
-    </button>
-  </div>
-</section>
-{% endif %}
-
-
-<!-- Row 2: Hollywood English 2026 -->
-{% if hollywood_movies %}
-<section class="netflix-row">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">Hollywood English 2026</h2>
-  </div>
-
-  <div class="netflix-carousel-container">
-    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-hollywood', -600)">
-      <i class="bi bi-chevron-left"></i>
-    </button>
-
-    <div class="netflix-carousel" id="carousel-hollywood">
-      {% for m in hollywood_movies %}
-      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
-        <div class="netflix-poster-box">
-          <img
-            src="{{ m.poster }}"
-            alt="{{ m.title }}"
-            class="netflix-poster-img"
-            loading="lazy"
-            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
-          >
-          <span class="netflix-card-badge">Hollywood</span>
-        </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.5' }}</span>
-            <span>2026</span>
-            <span class="quality">HD</span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
+    <div class="featured-arrows-wrap">
+      <button class="featured-arrow-btn" onclick="scrollCarousel('carousel-featured', -500)" aria-label="Previous Featured Movie" type="button">
+        <i class="bi bi-caret-left-fill"></i>
+      </button>
+      <button class="featured-arrow-btn" onclick="scrollCarousel('carousel-featured', 500)" aria-label="Next Featured Movie" type="button">
+        <i class="bi bi-caret-right-fill"></i>
+      </button>
     </div>
-
-    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-hollywood', 600)">
-      <i class="bi bi-chevron-right"></i>
-    </button>
-  </div>
-</section>
-{% endif %}
-
-
-<!-- Row 3: Popular in Bollywood Hindi 2026 -->
-{% if bollywood_movies %}
-<section class="netflix-row">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">Bollywood Hindi 2026</h2>
   </div>
 
   <div class="netflix-carousel-container">
-    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-bollywood', -600)">
-      <i class="bi bi-chevron-left"></i>
-    </button>
-
-    <div class="netflix-carousel" id="carousel-bollywood">
-      {% for m in bollywood_movies %}
+    <div class="netflix-carousel" id="carousel-featured">
+      {% for m in featured_carousel_movies %}
       <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
         <div class="netflix-poster-box">
           <img
@@ -219,238 +133,68 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
-          <span class="netflix-card-badge">Hindi</span>
-        </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.0' }}</span>
-            <span>2026</span>
-            <span class="quality">HD</span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-
-    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-bollywood', 600)">
-      <i class="bi bi-chevron-right"></i>
-    </button>
-  </div>
-</section>
-{% endif %}
-
-
-<!-- Row 4: Dual Audio & Multi-Language 2026 -->
-{% if dual_audio_movies %}
-<section class="netflix-row">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">Dual Audio & Multi-Audio 2026</h2>
-  </div>
-
-  <div class="netflix-carousel-container">
-    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-dualaudio', -600)">
-      <i class="bi bi-chevron-left"></i>
-    </button>
-
-    <div class="netflix-carousel" id="carousel-dualaudio">
-      {% for m in dual_audio_movies %}
-      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
-        <div class="netflix-poster-box">
-          <img
-            src="{{ m.poster }}"
-            alt="{{ m.title }}"
-            class="netflix-poster-img"
-            loading="lazy"
-            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
-          >
-          <span class="netflix-card-badge">Dual</span>
-        </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.4' }}</span>
-            <span>2026</span>
-            <span class="quality">Multi-Audio</span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-
-    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-dualaudio', 600)">
-      <i class="bi bi-chevron-right"></i>
-    </button>
-  </div>
-</section>
-{% endif %}
-
-
-<!-- Row 5: TV & Web Series 2026 -->
-{% if series_movies %}
-<section class="netflix-row">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">TV Shows & Web Series 2026</h2>
-  </div>
-
-  <div class="netflix-carousel-container">
-    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-series', -600)">
-      <i class="bi bi-chevron-left"></i>
-    </button>
-
-    <div class="netflix-carousel" id="carousel-series">
-      {% for m in series_movies %}
-      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
-        <div class="netflix-poster-box">
-          <img
-            src="{{ m.poster }}"
-            alt="{{ m.title }}"
-            class="netflix-poster-img"
-            loading="lazy"
-            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
-          >
-          <span class="netflix-card-badge">Series</span>
-        </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.6' }}</span>
-            <span>2026</span>
-            <span class="quality">Season 1</span>
-          </div>
-        </div>
-      </a>
-      {% endfor %}
-    </div>
-
-    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-series', 600)">
-      <i class="bi bi-chevron-right"></i>
-    </button>
-  </div>
-</section>
-{% endif %}
-
-{% else %}
-
-<!-- Dedicated Filtered Showcase Carousel -->
-{% if movies and movies|length > 6 %}
-<section class="netflix-row">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">
-      {% if query %}
-        Featured Matches for "{{ query }}"
-      {% elif genre and genre != 'All' %}
-        {% if genre == 'Series' %}
-          Featured TV & Web Series 2026
-        {% else %}
-          Featured {{ genre }} 2026 Releases
-        {% endif %}
-      {% elif nav == 'hollywood' %}
-        Featured Hollywood English 2026 Releases
-      {% elif nav == 'bollywood' %}
-        Featured Bollywood Hindi 2026 Releases
-      {% elif nav == 'tv_shows' %}
-        Featured TV & Web Series 2026
-      {% elif nav == 'dual_audio' %}
-        Featured Dual Audio & Multi-Audio 2026 Releases
-      {% elif nav == 'downloads' or status == 'available' %}
-        Featured Available Downloads
-      {% else %}
-        Featured Available Releases
-      {% endif %}
-    </h2>
-  </div>
-
-  <div class="netflix-carousel-container">
-    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-filtered', -600)">
-      <i class="bi bi-chevron-left"></i>
-    </button>
-
-    <div class="netflix-carousel" id="carousel-filtered">
-      {% for m in movies[:18] %}
-      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
-        <div class="netflix-poster-box">
-          <img
-            src="{{ m.poster }}"
-            alt="{{ m.title }}"
-            class="netflix-poster-img"
-            loading="lazy"
-            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
-          >
-          <span class="netflix-card-badge">
-            {% if (genre == 'Series' or nav == 'tv_shows') or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
-              Series
-            {% elif genre and genre != 'All' %}
-              {{ genre }}
-            {% elif nav == 'hollywood' %}
-              Hollywood
-            {% elif nav == 'bollywood' %}
-              Bollywood
-            {% elif nav == 'dual_audio' %}
-              Dual
-            {% else %}
-              {{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}
-            {% endif %}
+          <!-- FEATURE Red Badge (Image 1) -->
+          <span class="badge-feature-red">FEATURE</span>
+          <!-- Star Rating (Image 1) -->
+          <span class="badge-corner-rating">
+            <i class="bi bi-star-fill"></i>
+            {{ m.rating or '8.4' }}
           </span>
         </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.8' }}</span>
-            <span>2026</span>
-            <span class="quality">
-              {% if 'season 2' in (m.title ~ ' ' ~ m.description)|lower %}
-                Season 2
-              {% elif 'season' in (m.title ~ ' ' ~ m.description)|lower or genre == 'Series' %}
-                Season 1
-              {% else %}
-                HD
-              {% endif %}
-            </span>
-          </div>
+        <div class="sample-card-title-line">
+          <i class="bi bi-ticket-perforated-fill icon"></i>
+          <span class="sample-card-title-text" title="{{ m.title }}">{{ m.title }}</span>
         </div>
+        <div class="sample-card-subtext">{{ m.year or '2026' }}</div>
       </a>
       {% endfor %}
     </div>
-
-    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-filtered', 600)">
-      <i class="bi bi-chevron-right"></i>
-    </button>
   </div>
 </section>
-{% endif %}
-
 {% endif %}
 
 
 <!-- ==========================================================================
-     FULL CATALOG GRID (PAGINATED WITH ZERO CLUTTER)
+     SECTION 2: LATEST MOVIES (IMAGE 2 SAMPLE MATCH)
      ========================================================================== -->
-<section class="netflix-row mt-4">
-  <div class="netflix-row-header">
-    <h2 class="netflix-row-title">
-      {% if query %}
-        Search Results for "{{ query }}" ({{ pagination.total }} titles)
-      {% elif genre and genre != 'All' %}
-        {% if genre == 'Series' %}
-          TV & Web Series 2026 ({{ pagination.total }} titles)
+<section class="netflix-row latest-movies-section mt-4">
+  <div class="section-header-row">
+    <div class="section-title-wrap">
+      <span class="section-accent-bar"></span>
+      <h2 class="section-title-text">
+        {% if query %}
+          Search Results: "{{ query }}" ({{ pagination.total }})
+        {% elif genre and genre != 'All' %}
+          {% if genre == 'Series' %}
+            TV Shows & Web Series ({{ pagination.total }})
+          {% else %}
+            {{ genre }} Movies ({{ pagination.total }})
+          {% endif %}
+        {% elif nav == 'hollywood' %}
+          Hollywood English ({{ pagination.total }})
+        {% elif nav == 'bollywood' %}
+          Bollywood Hindi ({{ pagination.total }})
+        {% elif nav == 'tv_shows' %}
+          TV Shows & Series ({{ pagination.total }})
+        {% elif nav == 'dual_audio' %}
+          Dual Audio Movies ({{ pagination.total }})
+        {% elif nav == 'downloads' or status == 'available' %}
+          Available Movies ({{ pagination.total }})
         {% else %}
-          {{ genre }} 2026 Releases ({{ pagination.total }} titles)
+          Latest Movies
         {% endif %}
-      {% elif nav == 'hollywood' %}
-        Hollywood English 2026 ({{ pagination.total }} titles)
-      {% elif nav == 'bollywood' %}
-        Bollywood Hindi 2026 ({{ pagination.total }} titles)
-      {% elif nav == 'tv_shows' %}
-        TV Shows & Web Series 2026 ({{ pagination.total }} titles)
-      {% elif nav == 'dual_audio' %}
-        Dual Audio & Multi-Audio 2026 ({{ pagination.total }} titles)
-      {% elif nav == 'downloads' or status == 'available' %}
-        Available Downloads ({{ pagination.total }} titles)
+      </h2>
+    </div>
+
+    <div>
+      {% if is_filtered %}
+      <a href="{{ url_for('home') }}" class="btn-see-all-red">
+        <i class="bi bi-x-circle me-1"></i> CLEAR FILTER
+      </a>
       {% else %}
-        All 2026 Releases ({{ pagination.total }} titles)
+      <a href="{{ url_for('home', genre='All') }}" class="btn-see-all-red">SEE ALL</a>
       {% endif %}
-    </h2>
+    </div>
   </div>
 
   {% if movies %}
@@ -466,38 +210,18 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
-          <span class="netflix-card-badge">
-            {% if (genre == 'Series' or nav == 'tv_shows') or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
-              Series
-            {% elif genre and genre != 'All' %}
-              {{ genre }}
-            {% elif nav == 'hollywood' %}
-              Hollywood
-            {% elif nav == 'bollywood' %}
-              Bollywood
-            {% elif nav == 'dual_audio' %}
-              Dual
-            {% else %}
-              {{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}
-            {% endif %}
+          <!-- Quality / Audio Tag Badge (Image 2) -->
+          <span class="badge-quality-tag">{{ m.quality_tag }}</span>
+          <!-- Corner Star Rating (Image 2) -->
+          <span class="badge-corner-rating">
+            <i class="bi bi-star-fill"></i>
+            {{ m.rating or '8.5' }}
           </span>
         </div>
-        <div class="netflix-card-info">
-          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
-          <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.7' }}</span>
-            <span>2026</span>
-            <span class="quality">
-              {% if 'season 2' in (m.title ~ ' ' ~ m.description)|lower %}
-                Season 2
-              {% elif 'season' in (m.title ~ ' ' ~ m.description)|lower or genre == 'Series' %}
-                Season 1
-              {% else %}
-                HD
-              {% endif %}
-            </span>
-          </div>
+        <div class="sample-card-title-line">
+          <span class="sample-card-title-text" title="{{ m.title }}">{{ m.title }}</span>
         </div>
+        <div class="sample-card-subtext">{{ m.formatted_date }}</div>
       </a>
     </div>
     {% endfor %}

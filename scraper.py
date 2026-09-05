@@ -206,14 +206,16 @@ class MWLBDScraper:
         candidate_links = soup.find_all('a', href=True)
         for a in candidate_links:
             href = a['href']
-            # Match movie URLs e.g. /movie/title-year/
             if '/movie/' in href and href not in seen_urls:
-                # Exclude category or pagination links
-                if any(x in href for x in ['/genre/', '/category/', '/tag/', '/page/']):
+                # Exclude category, pagination, and generic root /movie/ links
+                slug = href.strip('/').split('/')[-1]
+                if not slug or slug in ('movie', 'movies') or any(x in href for x in ['/genre/', '/category/', '/tag/', '/page/']):
+                    continue
+                raw_text = a.text.strip()
+                if any(bad in raw_text.lower() for bad in ['see all', 'view all', 'all movies']):
                     continue
 
                 full_url = urljoin(self.base_url, href)
-                raw_text = a.text.strip()
 
                 # Find associated poster image if nearby
                 poster_url = ""

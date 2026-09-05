@@ -266,4 +266,60 @@
   </div>
   {% endif %}
 </section>
+
+
+<!-- ==========================================================================
+     SECTION 3: TV & WEB SERIES (AFTER LATEST MOVIES)
+     ========================================================================== -->
+{% if not is_filtered and series_movies %}
+<section class="netflix-row series-section mt-4 mb-5">
+  <div class="section-header-row">
+    <div class="section-title-wrap">
+      <span class="section-accent-bar"></span>
+      <h2 class="section-title-text">TV & WEB Series</h2>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <div class="featured-arrows-wrap">
+        <button class="featured-arrow-btn" onclick="scrollCarousel('carousel-series', -500)" aria-label="Previous Series" type="button">
+          <i class="bi bi-caret-left-fill"></i>
+        </button>
+        <button class="featured-arrow-btn" onclick="scrollCarousel('carousel-series', 500)" aria-label="Next Series" type="button">
+          <i class="bi bi-caret-right-fill"></i>
+        </button>
+      </div>
+      <a href="{{ url_for('home', genre='Series') }}" class="btn-see-all-red">SEE ALL</a>
+    </div>
+  </div>
+
+  <div class="netflix-carousel-container">
+    <div class="netflix-carousel" id="carousel-series">
+      {% for m in series_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <!-- Quality Tag Badge -->
+          <span class="badge-quality-tag">{{ m.quality_tag }}</span>
+          <!-- Star Rating -->
+          <span class="badge-corner-rating">
+            <i class="bi bi-star-fill"></i>
+            {{ m.rating or '7.6' }}
+          </span>
+        </div>
+        <div class="sample-card-title-line">
+          <i class="bi bi-tv-fill icon"></i>
+          <span class="sample-card-title-text" title="{{ m.title }}">{{ m.title }}</span>
+        </div>
+        <div class="sample-card-subtext">{{ m.year or '2026' }}</div>
+      </a>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+{% endif %}
 {% endblock %}

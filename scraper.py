@@ -112,7 +112,7 @@ class MWLBDScraper:
         for u in gdrive_urls:
             if u not in seen_urls:
                 seen_urls.add(u)
-                links.append(self._format_gdrive_link(u, label="Direct Download"))
+                links.append(self._format_gdrive_link(u, label="Download"))
 
         # 2. Parse download tables on MWLBD
         tables = soup.find_all('table')
@@ -650,7 +650,7 @@ class MWLBDScraper:
                 if p and len(p.text.strip()) > 30:
                     description = p.text.strip()
         if not description:
-            description = f"{clean_title} ({year}) available for direct download from Google Drive in high definition."
+            description = f"{clean_title} ({year}) available for streaming and high definition download."
 
         # 7. Extract Google Drive download links
         download_links = self._extract_download_links(soup, html)

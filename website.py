@@ -543,7 +543,7 @@ def api_notifications():
 
         status = m.get("status", "pending")
         if status == "available":
-            badge_text = "Direct Ready"
+            badge_text = "Available"
         elif str(m.get("year")) > "2026":
             badge_text = f"Upcoming {m.get('year')}"
         else:

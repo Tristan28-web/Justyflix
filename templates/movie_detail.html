@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ movie.title }} ({{ movie.year }}) - Justyflix Cinema Direct Download{% endblock %}
+{% block title %}{{ movie.title }} ({{ movie.year }}) - Justyflix Cinema{% endblock %}
 
 {% block content %}
 <div class="netflix-detail-container">
@@ -44,7 +44,7 @@
             <span class="text-light fw-bold">{{ movie.year or '2026' }}</span>
             <span class="text-secondary">•</span>
             <span class="badge border border-secondary text-light">{{ movie.genre.split(',')[0] if movie.genre else 'Movie' }}</span>
-            <span class="badge bg-danger">Direct Download</span>
+            <span class="badge bg-danger">Available</span>
           </div>
 
           <!-- Title -->
@@ -52,7 +52,7 @@
 
           <!-- Synopsis -->
           <p class="text-secondary leading-relaxed mb-4 fs-6" style="color: #bbb !important;">
-            {{ movie.description or 'A brand new 2026 release with instant cloud streaming and direct high-speed downloads.' }}
+            {{ movie.description or 'A brand new 2026 release with instant cloud streaming and high-speed downloads.' }}
           </p>
 
           <!-- Metadata info -->
@@ -83,11 +83,11 @@
     </div>
   </div>
 
-  <!-- Direct Downloads Section -->
+  <!-- Downloads Section -->
   <div class="card bg-dark border-0 p-4 mb-4 shadow" style="background-color: #181818 !important; border-radius: 12px;">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h4 class="text-white fw-bold mb-0">
-        <i class="bi bi-cloud-arrow-down-fill text-danger me-2"></i> Direct Downloads
+        <i class="bi bi-cloud-arrow-down-fill text-danger me-2"></i> Downloads
       </h4>
       <span class="badge bg-secondary">
         {{ movie.download_links|length if movie.download_links else 0 }} link(s)
@@ -100,7 +100,7 @@
       <div class="netflix-download-card d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         <div>
           <div class="fw-bold text-white fs-5">
-            {{ (link.label or 'Direct High-Speed Download') | replace('Google Drive ', '') | replace('Google Drive', 'Direct') | replace('GDRive', 'Direct') | replace('Gdrive', 'Direct') }}
+            {{ (link.label or 'Download Link') | replace('Google Drive ', '') | replace('Google Drive', '') | replace('GDRive', '') | replace('Gdrive', '') | replace('Direct ', '') | replace('Direct', '') | trim }}
           </div>
           <div class="d-flex gap-2 align-items-center mt-1 flex-wrap">
             {% if link.quality %}
@@ -119,16 +119,16 @@
             class="btn-gdrive-direct js-download-btn"
             data-movie-id="{{ movie.id }}"
             data-link-idx="{{ loop.index0 }}"
-            data-quality="{{ link.quality or 'Direct' }}"
+            data-quality="{{ link.quality or 'HD' }}"
             download
           >
-            <i class="bi bi-download"></i> Download {{ link.quality or 'Direct' }}
+            <i class="bi bi-download"></i> Download {{ link.quality or '' }}
           </a>
           <button
             type="button"
             class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
             data-link="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0, _external=True) }}"
-            title="Copy Direct Link"
+            title="Copy Link"
           >
             <i class="bi bi-clipboard"></i>
           </button>
@@ -139,7 +139,7 @@
 
     {% else %}
     <div class="text-center py-4 text-muted">
-      <p class="mb-0">No direct download links indexed yet for this title.</p>
+      <p class="mb-0">No download links indexed yet for this title.</p>
     </div>
     {% endif %}
   </div>

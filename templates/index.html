@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Justyflix - Stream & Direct Downloader{% endblock %}
+{% block title %}Justyflix - Stream & Download Movies{% endblock %}
 
 {% block content %}
 <!-- ==========================================================================
@@ -31,14 +31,14 @@
 
     <!-- Synopsis -->
     <p class="netflix-hero-desc">
-      {{ featured_movie.description or 'A brand new 2026 cinematic release with instant streaming and direct cloud downloads.' }}
+      {{ featured_movie.description or 'A brand new 2026 cinematic release with instant streaming and high-speed cloud downloads.' }}
     </p>
 
     <!-- Action Buttons -->
     <div class="netflix-hero-actions">
       {% if featured_movie.download_links and featured_movie.download_links|length > 0 %}
       <a href="{{ featured_movie.download_links[0].url }}" target="_blank" rel="noopener noreferrer" class="btn-netflix-watch">
-        <i class="bi bi-play-fill fs-5"></i> DOWNLOAD DIRECT
+        <i class="bi bi-download fs-5"></i> DOWNLOAD NOW
       </a>
       {% else %}
       <a href="{{ url_for('movie_detail', movie_id=featured_movie.id) }}" class="btn-netflix-watch">
@@ -326,9 +326,9 @@
       {% elif nav == 'dual_audio' %}
         Featured Dual Audio & Multi-Audio 2026 Releases
       {% elif nav == 'downloads' or status == 'available' %}
-        Featured Direct Downloads
+        Featured Available Downloads
       {% else %}
-        Featured Direct Downloads
+        Featured Available Releases
       {% endif %}
     </h2>
   </div>
@@ -418,7 +418,7 @@
       {% elif nav == 'dual_audio' %}
         Dual Audio & Multi-Audio 2026 ({{ pagination.total }} titles)
       {% elif nav == 'downloads' or status == 'available' %}
-        Direct Downloads Available ({{ pagination.total }} titles)
+        Available Downloads ({{ pagination.total }} titles)
       {% else %}
         All 2026 Releases ({{ pagination.total }} titles)
       {% endif %}
@@ -465,7 +465,7 @@
               {% elif 'season' in (m.title ~ ' ' ~ m.description)|lower or genre == 'Series' %}
                 Season 1
               {% else %}
-                Direct
+                HD
               {% endif %}
             </span>
           </div>

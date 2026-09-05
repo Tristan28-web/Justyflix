@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
     handleScroll(); // Initial check
   }
 
-  // 2. Clipboard Copy Helper for Direct Download Links
+  // 2. Clipboard Copy Helper for Download Links
   const copyButtons = document.querySelectorAll('.btn-copy-link');
   copyButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -158,7 +158,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
         <div class="text-white fw-bold text-truncate" style="font-size: 0.85rem;">${movie.title}</div>
         <div class="text-muted small mt-1 d-flex align-items-center gap-1">
-          <span class="text-success fw-semibold"><i class="bi bi-cloud-arrow-down-fill me-1"></i>Direct Ready</span>
+          <span class="text-success fw-semibold"><i class="bi bi-check-circle me-1"></i>Available</span>
           <span class="mx-1">•</span>
           <a href="${movie.url}" class="text-info text-decoration-none fw-bold ms-auto">Stream Now &raquo;</a>
         </div>
@@ -234,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
               <span class="text-warning"><i class="bi bi-star-fill me-1" style="font-size: 0.65rem;"></i>${item.rating}</span>
               <span>•</span>
               <span class="text-light">${item.year}</span>
-              ${isAvailable ? '<span class="badge bg-success ms-auto" style="font-size: 0.6rem;"><i class="bi bi-check-circle-fill me-1"></i>Direct Ready</span>' : ''}
+              ${isAvailable ? '<span class="badge bg-success ms-auto" style="font-size: 0.6rem;"><i class="bi bi-check-circle-fill me-1"></i>Available</span>' : ''}
             </div>
           </div>
         </a>

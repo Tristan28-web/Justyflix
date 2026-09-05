@@ -177,37 +177,25 @@ class MWLBDScraper:
 
         return links
 
-    def get_latest_movies(self, limit: int = 15) -> List[Dict[str, Any]]:
+    def get_movies_from_page(self, page_num: int = 1) -> List[Dict[str, Any]]:
         """
-        Scrapes movie listings from the homepage or catalog.
-        Returns basic list of {title, url, poster, year}.
+        Scrapes all movie listings from a specific archive page number.
+        E.g. /movie/ (page 1) or /movie/page/2/ etc.
         """
-        logger.info(f"Scraping latest movies from {self.base_url} (limit={limit})")
-        html = self._fetch_url(self.base_url)
+        page_url = f"{self.base_url}/movie/" if page_num <= 1 else f"{self.base_url}/movie/page/{page_num}/"
+        logger.info(f"Scraping catalog page {page_num}: {page_url}")
+        html = self._fetch_url(page_url)
         if not html:
-            # Try fallback mirrors if configured base_url fails
-            for mirror in Config.FALLBACK_MIRRORS:
-                if mirror != self.base_url:
-                    logger.info(f"Attempting fallback mirror: {mirror}")
-                    html = self._fetch_url(mirror)
-                    if html:
-                        self.base_url = mirror
-                        break
-
-        if not html:
-            logger.error("Failed to retrieve listings from base URL and fallback mirrors.")
+            logger.warning(f"Failed to fetch catalog page {page_num}")
             return []
 
         soup = BeautifulSoup(html, 'html.parser')
         discovered: List[Dict[str, Any]] = []
         seen_urls = set()
 
-        # MWLBD lists movie links inside <h3><a href="..."> or <article><a>
-        candidate_links = soup.find_all('a', href=True)
-        for a in candidate_links:
+        for a in soup.find_all('a', href=True):
             href = a['href']
             if '/movie/' in href and href not in seen_urls:
-                # Exclude category, pagination, and generic root /movie/ links
                 slug = href.strip('/').split('/')[-1]
                 if not slug or slug in ('movie', 'movies') or any(x in href for x in ['/genre/', '/category/', '/tag/', '/page/']):
                     continue
@@ -217,7 +205,6 @@ class MWLBDScraper:
 
                 full_url = urljoin(self.base_url, href)
 
-                # Find associated poster image if nearby
                 poster_url = ""
                 parent_container = a.find_parent(['article', 'div', 'li'])
                 if parent_container:
@@ -225,15 +212,12 @@ class MWLBDScraper:
                     if img:
                         poster_url = img.get('src') or img.get('data-src') or ""
 
-                # Extract year if present
                 year_match = re.search(r'\b(20\d\d|19\d\d)\b', raw_text or href)
                 year = year_match.group(1) if year_match else ""
 
                 clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_text)
                 clean_title = clean_title.strip(' -:|')
                 if not clean_title:
-                    # Derivation from URL slug
-                    slug = href.strip('/').split('/')[-1]
                     clean_title = slug.replace('-', ' ').title()
 
                 seen_urls.add(href)
@@ -244,11 +228,94 @@ class MWLBDScraper:
                     "year": year
                 })
 
-                if len(discovered) >= limit:
-                    break
-
-        logger.info(f"Discovered {len(discovered)} movie listings.")
+        logger.info(f"Page {page_num}: discovered {len(discovered)} movies.")
         return discovered
+
+    def get_total_catalog_pages(self) -> int:
+        """Determines the maximum number of archive pages on MWLBD."""
+        catalog_url = f"{self.base_url}/movie/"
+        html = self._fetch_url(catalog_url)
+        if not html:
+            return 1
+        soup = BeautifulSoup(html, 'html.parser')
+        pagination = soup.select_one('.pagination, .pagination-area, .nav-links')
+        if pagination:
+            text = pagination.text
+            match = re.search(r'Page\s+\d+\s+of\s+(\d+)', text, re.I)
+            if match:
+                return int(match.group(1))
+        # Fallback to checking page numbers in links
+        page_nums = []
+        for a in soup.find_all('a', href=True):
+            if '/movie/page/' in a['href']:
+                m = re.search(r'/page/(\d+)', a['href'])
+                if m:
+                    page_nums.append(int(m.group(1)))
+        return max(page_nums) if page_nums else 1
+
+    def get_latest_movies(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Scrapes movie listings from homepage and catalog.
+        If limit is None, returns all listings on page 1.
+        """
+        movies = self.get_movies_from_page(1)
+        return movies[:limit] if limit else movies
+
+    def crawl_catalog(
+        self,
+        start_page: int = 1,
+        num_pages: int = 1,
+        concurrency: int = 4,
+        on_movie_saved: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Crawls multiple catalog pages concurrently and saves metadata & GDrive links into database.
+        Zero movie files are stored locally.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from database import db
+
+        total_scraped = 0
+        total_errors = 0
+        all_movies_to_fetch = []
+
+        logger.info(f"Starting catalog crawl from page {start_page} for {num_pages} page(s)...")
+
+        for page in range(start_page, start_page + num_pages):
+            page_listings = self.get_movies_from_page(page)
+            if not page_listings:
+                logger.warning(f"No listings found on page {page}. Halting crawl.")
+                break
+            all_movies_to_fetch.extend(page_listings)
+
+        logger.info(f"Discovered {len(all_movies_to_fetch)} unique movies across pages. Fetching full details concurrently...")
+
+        def _fetch_and_save(item):
+            try:
+                details = self.get_movie_details(item["url"])
+                if details:
+                    db.save_movie(details)
+                    if on_movie_saved:
+                        on_movie_saved(details)
+                    return True
+            except Exception as e:
+                logger.error(f"Error crawling {item.get('title')}: {e}")
+            return False
+
+        with ThreadPoolExecutor(max_workers=concurrency) as executor:
+            future_to_movie = {executor.submit(_fetch_and_save, m): m for m in all_movies_to_fetch}
+            for future in as_completed(future_to_movie):
+                if future.result():
+                    total_scraped += 1
+                else:
+                    total_errors += 1
+
+        logger.info(f"Catalog crawl completed: {total_scraped} saved, {total_errors} errors.")
+        return {
+            "total_scraped": total_scraped,
+            "total_errors": total_errors,
+            "pages_crawled": num_pages
+        }
 
     def get_movie_details(self, movie_url: str) -> Optional[Dict[str, Any]]:
         """

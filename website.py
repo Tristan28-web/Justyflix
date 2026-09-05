@@ -97,54 +97,111 @@ def seed_initial_data_if_empty():
 seed_initial_data_if_empty()
 
 
-# Background Scraping Worker Function
-def run_scrape_task(limit: int = 15):
-    """Executes scraping task in background thread."""
-    logger.info(f"Background scrape initiated (limit={limit})")
-    scraper = MWLBDScraper()
-    discovered = scraper.get_latest_movies(limit=limit)
-    saved_count = 0
+# Global background crawler tracking state
+crawler_state = {
+    "is_running": False,
+    "start_page": 1,
+    "num_pages": 1,
+    "pages_completed": 0,
+    "total_scraped": 0,
+    "message": "Crawler is idle.",
+    "last_run": None
+}
+_crawler_lock = threading.Lock()
 
-    for item in discovered:
-        try:
-            details = scraper.get_movie_details(item["url"])
-            if details:
-                db.save_movie(details)
-                saved_count += 1
-        except Exception as ex:
-            logger.error(f"Error scraping movie {item.get('title')}: {ex}")
 
-    logger.info(f"Background scrape finished: {saved_count} movies updated/saved.")
+def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4):
+    """Executes multi-page catalog crawler in background thread."""
+    global crawler_state
+    with _crawler_lock:
+        if crawler_state["is_running"]:
+            logger.warning("Crawl task requested while another is already active.")
+            return
+        crawler_state["is_running"] = True
+        crawler_state["start_page"] = start_page
+        crawler_state["num_pages"] = num_pages
+        crawler_state["pages_completed"] = 0
+        crawler_state["total_scraped"] = 0
+        crawler_state["message"] = f"Crawling pages {start_page} to {start_page + num_pages - 1}..."
+
+    try:
+        scraper = MWLBDScraper()
+        result = scraper.crawl_catalog(
+            start_page=start_page,
+            num_pages=num_pages,
+            concurrency=concurrency
+        )
+        with _crawler_lock:
+            crawler_state["is_running"] = False
+            crawler_state["pages_completed"] = result.get("pages_crawled", num_pages)
+            crawler_state["total_scraped"] = result.get("total_scraped", 0)
+            crawler_state["message"] = (
+                f"Completed crawl of {result.get('pages_crawled')} page(s)! "
+                f"Successfully saved/updated {result.get('total_scraped')} movies."
+            )
+            from datetime import datetime
+            crawler_state["last_run"] = datetime.utcnow().isoformat()
+    except Exception as e:
+        logger.error(f"Background crawl task encountered an error: {e}", exc_info=True)
+        with _crawler_lock:
+            crawler_state["is_running"] = False
+            crawler_state["message"] = f"Crawl error: {e}"
+
+
+# Standard MWLBD Navigation Categories
+MWLBD_CATEGORIES = [
+    {"label": "Bollywood Hindi", "genre": "Bollywood"},
+    {"label": "Hollywood English", "genre": "Hollywood"},
+    {"label": "Dual Audio", "genre": "Dual Audio"},
+    {"label": "Hindi Dubbed", "genre": "Hindi Dubbed"},
+    {"label": "South Indian", "genre": "Tamil"},
+    {"label": "TV & Web Series", "genre": "Series"},
+    {"label": "Anime & Cartoon", "genre": "Anime"},
+    {"label": "Action", "genre": "Action"},
+    {"label": "Horror", "genre": "Horror"},
+    {"label": "Comedy", "genre": "Comedy"},
+    {"label": "4K UHD / 1080p", "genre": "1080p"},
+]
 
 
 # Web Routes
 @app.route('/')
 def home():
-    """Home page displaying movie grid with search and filters."""
+    """Home page displaying movie grid with server-side pagination, search, and filters."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 30, type=int)
     query = request.args.get('q', '').strip()
     status = request.args.get('status', '').strip()
     genre = request.args.get('genre', '').strip()
 
-    movies = db.get_all_movies(status=status or None, query=query or None, genre=genre or None)
+    pagination = db.get_paginated_movies(
+        page=page,
+        per_page=per_page,
+        status=status or None,
+        query=query or None,
+        genre=genre or None
+    )
     stats = db.get_stats()
-    
-    # Extract distinct genres for filter badges
+
+    # Extract all distinct genres from database for filter pills
     all_movies = db.get_all_movies()
     genre_set = set()
     for m in all_movies:
         for g in m.get('genre', '').split(','):
             clean_g = g.strip()
-            if clean_g:
+            if clean_g and len(clean_g) > 2:
                 genre_set.add(clean_g)
 
     return render_template(
         'index.html',
-        movies=movies,
+        movies=pagination["items"],
+        pagination=pagination,
         stats=stats,
         query=query,
         status=status,
         genre=genre,
-        all_genres=sorted(list(genre_set))
+        categories=MWLBD_CATEGORIES,
+        all_genres=sorted(list(genre_set))[:15]
     )
 
 
@@ -154,15 +211,24 @@ def movie_detail(movie_id):
     movie = db.get_movie(movie_id)
     if not movie:
         abort(404)
-    return render_template('movie_detail.html', movie=movie)
+    return render_template('movie_detail.html', movie=movie, categories=MWLBD_CATEGORIES)
 
 
 @app.route('/scrape')
 def scrape_view():
-    """Manual scrape trigger and dashboard view."""
+    """Manual scrape trigger and deep crawler dashboard view."""
     stats = db.get_stats()
-    movies = db.get_all_movies()[:10]  # Show recent 10 movies
-    return render_template('scrape.html', stats=stats, recent_movies=movies)
+    movies = db.get_all_movies()[:15]
+    scraper = MWLBDScraper()
+    total_pages = scraper.get_total_catalog_pages()
+    return render_template(
+        'scrape.html',
+        stats=stats,
+        recent_movies=movies,
+        crawler_state=crawler_state,
+        total_site_pages=total_pages,
+        categories=MWLBD_CATEGORIES
+    )
 
 
 @app.route('/scrape-details/<path:url>')
@@ -228,6 +294,37 @@ def api_trigger_scrape():
         "message": f"Scraper initiated in background (limit={limit}).",
         "timestamp": db.get_stats().get("last_scrape")
     }), 202
+
+
+@app.route('/api/crawl', methods=['POST'])
+def api_trigger_crawl():
+    """Triggers multi-page background crawling."""
+    start_page = request.args.get('start_page', default=1, type=int)
+    num_pages = request.args.get('num_pages', default=2, type=int)
+    concurrency = request.args.get('concurrency', default=4, type=int)
+
+    thread = threading.Thread(
+        target=run_crawl_task,
+        kwargs={'start_page': start_page, 'num_pages': num_pages, 'concurrency': concurrency},
+        daemon=True
+    )
+    thread.start()
+
+    return jsonify({
+        "status": "success",
+        "message": f"Deep crawler started for {num_pages} page(s) starting at page {start_page}.",
+        "crawler": crawler_state
+    }), 202
+
+
+@app.route('/api/crawl/status', methods=['GET'])
+def api_crawl_status():
+    """Returns status of the active or completed crawl task."""
+    return jsonify({
+        "status": "success",
+        "crawler": crawler_state,
+        "database": db.get_stats()
+    }), 200
 
 
 @app.route('/api/stats', methods=['GET'])

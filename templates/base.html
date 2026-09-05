@@ -29,12 +29,28 @@
         <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
           <li class="nav-item">
             <a class="nav-link text-light" href="{{ url_for('home') }}">
-              <i class="bi bi-film me-1"></i> Movies
+              <i class="bi bi-film me-1"></i> All Movies
             </a>
+          </li>
+          <li class="nav-item dropdown">
+            <a class="nav-link dropdown-toggle text-light" href="#" id="categoriesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="bi bi-grid me-1"></i> Categories
+            </a>
+            <ul class="dropdown-menu dropdown-menu-dark border-secondary shadow" aria-labelledby="categoriesDropdown">
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Bollywood') }}"><i class="bi bi-tag text-info me-2"></i>Bollywood Hindi</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Hollywood') }}"><i class="bi bi-tag text-info me-2"></i>Hollywood English</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Dual Audio') }}"><i class="bi bi-tag text-info me-2"></i>Dual Audio</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Hindi Dubbed') }}"><i class="bi bi-tag text-info me-2"></i>Hindi Dubbed</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Tamil') }}"><i class="bi bi-tag text-info me-2"></i>South Indian (Tamil/Telugu)</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Series') }}"><i class="bi bi-tv text-warning me-2"></i>TV & Web Series</a></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='Anime') }}"><i class="bi bi-stars text-danger me-2"></i>Anime & Cartoon</a></li>
+              <li><hr class="dropdown-divider border-secondary"></li>
+              <li><a class="dropdown-item" href="{{ url_for('home', genre='1080p') }}"><i class="bi bi-badge-hd text-success me-2"></i>4K UHD & 1080p Full HD</a></li>
+            </ul>
           </li>
           <li class="nav-item">
             <a class="nav-link text-light" href="{{ url_for('scrape_view') }}">
-              <i class="bi bi-arrow-repeat me-1"></i> Scraper Dashboard
+              <i class="bi bi-robot me-1"></i> Scraper & Crawler
             </a>
           </li>
         </ul>

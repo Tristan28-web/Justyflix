@@ -32,31 +32,52 @@
 
   <!-- Control Cards -->
   <div class="row g-4 mb-4">
-    <!-- Manual Trigger Card -->
+    <!-- Multi-Page Deep Crawler Card -->
     <div class="col-lg-6">
       <div class="card bg-dark border-secondary p-4 h-100 shadow-sm">
-        <h5 class="text-white fw-bold mb-2">
-          <i class="bi bi-cloud-arrow-down-fill text-info me-2"></i> Trigger Catalog Scrape
-        </h5>
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <h5 class="text-white fw-bold mb-0">
+            <i class="bi bi-robot text-info me-2"></i> Multi-Page Catalog Crawler
+          </h5>
+          <span class="badge bg-secondary text-info">
+            {{ total_site_pages }} Archive Pages Available (~21,000+ Movies)
+          </span>
+        </div>
         <p class="text-muted small">
-          Connects to MWLBD / Fojik mirror, scrapes latest movie releases, extracts all Google Drive links, and updates <code>movies.json</code> without downloading any files to the server.
+          Crawls MWLBD / Fojik catalog archives across multiple pages, extracts all quality options (1080p, 720p, 480p) and Google Drive links directly into <code>movies.json</code> with zero local file downloads.
         </p>
 
         <div class="row g-2 align-items-center mt-2">
-          <div class="col-auto">
-            <label for="scrapeLimitInput" class="text-muted small">Movies to scrape:</label>
+          <div class="col-sm-6">
+            <label for="crawlStartPage" class="text-muted small">Start from Page:</label>
+            <input type="number" id="crawlStartPage" class="form-control form-control-sm bg-secondary text-light border-0" value="1" min="1" max="{{ total_site_pages }}">
           </div>
-          <div class="col-auto">
-            <select id="scrapeLimitInput" class="form-select form-select-sm bg-secondary text-light border-0">
-              <option value="5">Top 5 Movies</option>
-              <option value="10" selected>Top 10 Movies</option>
-              <option value="20">Top 20 Movies</option>
+          <div class="col-sm-6">
+            <label for="crawlNumPages" class="text-muted small">Pages to Crawl:</label>
+            <select id="crawlNumPages" class="form-select form-select-sm bg-secondary text-light border-0">
+              <option value="1">1 Page (~45 Movies)</option>
+              <option value="3" selected>3 Pages (~135 Movies)</option>
+              <option value="5">5 Pages (~225 Movies)</option>
+              <option value="10">10 Pages (~450 Movies)</option>
+              <option value="20">20 Pages (~900 Movies)</option>
+              <option value="50">50 Pages (~2,250 Movies)</option>
             </select>
           </div>
           <div class="col-12 mt-3">
-            <button id="btnTriggerScrape" class="btn btn-neon-purple w-100 py-2">
-              <i class="bi bi-play-circle-fill me-1"></i> Start Scraping Now
+            <button id="btnStartDeepCrawl" class="btn btn-neon-purple w-100 py-2">
+              <i class="bi bi-play-circle-fill me-1"></i> Start Multi-Page Crawl
             </button>
+          </div>
+        </div>
+
+        <!-- Crawler Progress Indicator -->
+        <div id="crawlerProgressArea" class="mt-3" style="display: {% if crawler_state.is_running %}block{% else %}none{% endif %};">
+          <div class="d-flex justify-content-between small text-muted mb-1">
+            <span id="crawlerStatusText">{{ crawler_state.message }}</span>
+            <span id="crawlerPercentText">Active</span>
+          </div>
+          <div class="progress bg-secondary" style="height: 8px;">
+            <div id="crawlerProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-info" style="width: 100%;"></div>
           </div>
         </div>
       </div>

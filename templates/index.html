@@ -68,11 +68,28 @@
       </div>
     </div>
 
+    <!-- MWLBD Category Quick Bar -->
+    <div class="d-flex flex-wrap gap-2 mb-3">
+      {% for cat in categories %}
+      <a
+        href="{{ url_for('home', genre=cat.genre) }}"
+        class="badge px-3 py-2 text-decoration-none {% if genre == cat.genre %}bg-info text-dark fw-bold{% else %}bg-secondary text-light border border-secondary{% endif %}"
+      >
+        {{ cat.label }}
+      </a>
+      {% endfor %}
+      {% if genre or query or status %}
+      <a href="{{ url_for('home') }}" class="badge bg-danger text-light px-3 py-2 text-decoration-none">
+        <i class="bi bi-x-circle me-1"></i> Reset Filters
+      </a>
+      {% endif %}
+    </div>
+
     <!-- Genre Pills -->
     {% if all_genres %}
-    <div class="d-flex flex-wrap gap-1 mt-3 pt-3 border-top border-secondary-subtle">
-      <span class="text-muted small me-2 align-self-center">Genres:</span>
-      {% for g in all_genres[:12] %}
+    <div class="d-flex flex-wrap gap-1 mt-2 pt-2 border-top border-secondary-subtle">
+      <span class="text-muted small me-2 align-self-center">All Genres:</span>
+      {% for g in all_genres %}
       <a
         href="{{ url_for('home', genre=g) }}"
         class="badge text-decoration-none {% if genre == g %}bg-info text-dark{% else %}bg-secondary-subtle text-light border border-secondary{% endif %}"
@@ -80,11 +97,6 @@
         {{ g }}
       </a>
       {% endfor %}
-      {% if genre %}
-      <a href="{{ url_for('home') }}" class="badge bg-danger text-light text-decoration-none">
-        <i class="bi bi-x-circle"></i> Clear
-      </a>
-      {% endif %}
     </div>
     {% endif %}
   </div>
@@ -157,6 +169,59 @@
     </div>
     {% endfor %}
   </div>
+
+  <!-- Server-Side Pagination Bar -->
+  {% if pagination and pagination.total_pages > 1 %}
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-5 pt-3 border-top border-secondary">
+    <div class="text-muted small">
+      Showing page <span class="text-white fw-bold">{{ pagination.current_page }}</span> of <span class="text-white fw-bold">{{ pagination.total_pages }}</span> ({{ pagination.total_items }} movies total)
+    </div>
+
+    <nav aria-label="Page navigation">
+      <ul class="pagination pagination-sm mb-0">
+        <!-- First & Previous -->
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=1, q=query, genre=genre, status=status) }}">
+            <i class="bi bi-chevron-double-left"></i>
+          </a>
+        </li>
+        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
+          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=pagination.prev_page or 1, q=query, genre=genre, status=status) }}">
+            Prev
+          </a>
+        </li>
+
+        <!-- Numbered sliding window around current page -->
+        {% set start_page = [1, pagination.current_page - 2] | max %}
+        {% set end_page = [pagination.total_pages, start_page + 4] | min %}
+        {% set start_page = [1, end_page - 4] | max %}
+
+        {% for p in range(start_page, end_page + 1) %}
+        <li class="page-item {% if p == pagination.current_page %}active{% endif %}">
+          <a
+            class="page-link {% if p == pagination.current_page %}bg-info text-dark border-info fw-bold{% else %}bg-dark border-secondary text-light{% endif %}"
+            href="{{ url_for('home', page=p, q=query, genre=genre, status=status) }}"
+          >
+            {{ p }}
+          </a>
+        </li>
+        {% endfor %}
+
+        <!-- Next & Last -->
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=pagination.next_page or pagination.total_pages, q=query, genre=genre, status=status) }}">
+            Next
+          </a>
+        </li>
+        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
+          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=pagination.total_pages, q=query, genre=genre, status=status) }}">
+            <i class="bi bi-chevron-double-right"></i>
+          </a>
+        </li>
+      </ul>
+    </nav>
+  </div>
+  {% endif %}
 
   <!-- Empty Search Result Helper -->
   <div id="noMoviesFound" class="card bg-dark border-secondary p-5 text-center mt-4" style="display: none;">

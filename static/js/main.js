@@ -54,55 +54,69 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 3. Manual Scrape Trigger via AJAX
-  const triggerScrapeBtn = document.getElementById('btnTriggerScrape');
-  const scrapeStatusBox = document.getElementById('scrapeStatusBox');
+  // 3. Multi-Page Deep Crawl Trigger & Poller
+  const startCrawlBtn = document.getElementById('btnStartDeepCrawl');
+  const progressArea = document.getElementById('crawlerProgressArea');
+  const statusText = document.getElementById('crawlerStatusText');
+  const percentText = document.getElementById('crawlerPercentText');
+  const progressBar = document.getElementById('crawlerProgressBar');
 
-  if (triggerScrapeBtn) {
-    triggerScrapeBtn.addEventListener('click', async () => {
-      const limitInput = document.getElementById('scrapeLimitInput');
-      const limit = limitInput ? limitInput.value : 15;
+  let pollInterval = null;
 
-      triggerScrapeBtn.disabled = true;
-      const originalText = triggerScrapeBtn.innerHTML;
-      triggerScrapeBtn.innerHTML = `
-        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-        Scraping MWLBD...
-      `;
+  const pollCrawlerStatus = async () => {
+    try {
+      const res = await fetch('/api/crawl/status');
+      const data = await res.json();
+      const crawler = data.crawler;
 
-      if (scrapeStatusBox) {
-        scrapeStatusBox.innerHTML = `
-          <div class="alert alert-info py-2 mb-3">
-            <i class="bi bi-arrow-repeat spin-icon"></i> Background scrape initiated for top ${limit} movies. This may take 15-30 seconds...
-          </div>
-        `;
+      if (crawler && statusText) {
+        statusText.textContent = crawler.message;
       }
 
+      if (crawler && !crawler.is_running) {
+        if (pollInterval) clearInterval(pollInterval);
+        if (startCrawlBtn) {
+          startCrawlBtn.disabled = false;
+          startCrawlBtn.innerHTML = '<i class="bi bi-play-circle-fill me-1"></i> Start Multi-Page Crawl';
+        }
+        if (percentText) percentText.textContent = 'Finished!';
+        if (progressBar) {
+          progressBar.classList.remove('progress-bar-animated');
+          progressBar.classList.add('bg-success');
+        }
+        setTimeout(() => window.location.reload(), 2500);
+      }
+    } catch (e) {
+      console.error('Error polling crawler status:', e);
+    }
+  };
+
+  if (startCrawlBtn) {
+    startCrawlBtn.addEventListener('click', async () => {
+      const startPage = document.getElementById('crawlStartPage')?.value || 1;
+      const numPages = document.getElementById('crawlNumPages')?.value || 3;
+
+      startCrawlBtn.disabled = true;
+      startCrawlBtn.innerHTML = `
+        <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+        Crawling MWLBD Catalog...
+      `;
+
+      if (progressArea) progressArea.style.display = 'block';
+      if (statusText) statusText.textContent = `Initiating crawl for ${numPages} page(s) starting from page ${startPage}...`;
+
       try {
-        const resp = await fetch(`/api/scrape?limit=${limit}`, { method: 'POST' });
+        const resp = await fetch(`/api/crawl?start_page=${startPage}&num_pages=${numPages}&concurrency=4`, {
+          method: 'POST'
+        });
         const result = await resp.json();
 
-        if (scrapeStatusBox) {
-          scrapeStatusBox.innerHTML = `
-            <div class="alert alert-success py-2 mb-3">
-              <i class="bi bi-check-circle-fill me-2"></i> ${result.message || 'Scrape completed! Refreshing listing in 3 seconds...'}
-            </div>
-          `;
-        }
-
-        setTimeout(() => {
-          window.location.reload();
-        }, 3500);
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(pollCrawlerStatus, 2500);
       } catch (err) {
-        if (scrapeStatusBox) {
-          scrapeStatusBox.innerHTML = `
-            <div class="alert alert-danger py-2 mb-3">
-              <i class="bi bi-exclamation-triangle-fill me-2"></i> Scrape request failed: ${err.message}
-            </div>
-          `;
-        }
-        triggerScrapeBtn.disabled = false;
-        triggerScrapeBtn.innerHTML = originalText;
+        alert('Failed to start crawler: ' + err.message);
+        startCrawlBtn.disabled = false;
+        startCrawlBtn.innerHTML = '<i class="bi bi-play-circle-fill me-1"></i> Start Multi-Page Crawl';
       }
     });
   }

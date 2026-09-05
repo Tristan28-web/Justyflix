@@ -193,6 +193,41 @@ class JSONDatabase:
             movie_list.sort(key=lambda x: x.get("scraped_at", ""), reverse=True)
             return movie_list
 
+    def get_paginated_movies(
+        self,
+        page: int = 1,
+        per_page: int = 30,
+        status: Optional[str] = None,
+        query: Optional[str] = None,
+        genre: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Returns a paginated slice of movies matching filters.
+        Includes pagination metadata: total, total_pages, current_page, has_next, has_prev.
+        """
+        all_matches = self.get_all_movies(status=status, query=query, genre=genre)
+        total_items = len(all_matches)
+        
+        per_page = max(1, per_page)
+        total_pages = max(1, (total_items + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
+
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        items = all_matches[start_idx:end_idx]
+
+        return {
+            "items": items,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "current_page": page,
+            "per_page": per_page,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_page": page - 1 if page > 1 else None,
+            "next_page": page + 1 if page < total_pages else None
+        }
+
     def update_status(self, movie_id: str, status: str) -> bool:
         """Update movie status (e.g. available, pending, error)."""
         with _db_lock:

@@ -11,45 +11,25 @@ from scraper import MWLBDScraper
 logger = setup_logger('worker')
 
 
-def scrape_only(limit: int = 20):
+def scrape_only(pages: int = 2, concurrency: int = 4):
     """
     Background worker job:
-    1. Scrapes latest movie metadata from MWLBD
-    2. Extracts Google Drive links
+    1. Crawls multiple catalog archive pages from MWLBD (pages 1 to N)
+    2. Concurrently extracts full metadata and Google Drive links
     3. Saves directly to JSON database
     STRICTLY ZERO FILE DOWNLOADS TO SERVER.
     """
     start_time = datetime.utcnow()
-    logger.info(f"=== Starting Scheduled Scrape Job at {start_time.isoformat()} (Limit: {limit}) ===")
+    logger.info(f"=== Starting Scheduled Multi-Page Scrape Job at {start_time.isoformat()} ({pages} pages) ===")
 
     try:
         scraper = MWLBDScraper()
-        latest_movies = scraper.get_latest_movies(limit=limit)
-        logger.info(f"Worker discovered {len(latest_movies)} movies.")
-
-        successful_count = 0
-        error_count = 0
-
-        for movie_info in latest_movies:
-            url = movie_info.get("url")
-            title = movie_info.get("title", "Unknown")
-            try:
-                details = scraper.get_movie_details(url)
-                if details:
-                    db.save_movie(details)
-                    successful_count += 1
-                else:
-                    error_count += 1
-                    logger.warning(f"Could not extract details for {title} ({url})")
-            except Exception as e:
-                error_count += 1
-                logger.error(f"Error processing movie '{title}': {e}")
-
+        result = scraper.crawl_catalog(start_page=1, num_pages=pages, concurrency=concurrency)
         stats = db.get_stats()
         duration = (datetime.utcnow() - start_time).total_seconds()
         logger.info(
             f"=== Completed Scrape Job in {duration:.2f}s! "
-            f"Successfully updated: {successful_count}, Errors: {error_count}. "
+            f"Successfully saved/updated: {result.get('total_scraped')}, Errors: {result.get('total_errors')}. "
             f"Total movies in DB: {stats.get('total')} ==="
         )
     except Exception as ex:

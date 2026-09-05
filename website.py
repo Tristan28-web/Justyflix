@@ -151,17 +151,17 @@ MWLBD_CATEGORIES = [
 ]
 
 
-# Netflix UI Navigation & Genre Pills
+# Justyflix UI Navigation & Genre Pills
 NETFLIX_GENRES = [
-    "All", "Action", "Adventure", "Anime", "Bollywood", "Comedy", "Crime",
-    "Documentary", "Drama", "Dual Audio", "Horror", "Sci-Fi", "Thriller"
+    "All", "Hollywood", "Bollywood", "Action", "Adventure", "Comedy", "Crime",
+    "Drama", "Dual Audio", "Horror", "Sci-Fi", "Thriller", "Anime", "Series"
 ]
 
 
 # Web Routes
 @app.route('/')
 def home():
-    """Home page displaying Netflix-style cinematic hero, category carousels, and movie grid."""
+    """Home page displaying Justyflix cinematic hero, category carousels, and movie grid."""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 30, type=int)
     query = request.args.get('q', '').strip()
@@ -178,7 +178,7 @@ def home():
     stats = db.get_stats()
     all_movies = db.get_all_movies()
 
-    # Pick top featured movie for Netflix Billboard Hero
+    # Pick top featured movie for Justyflix Billboard Hero
     featured_movie = None
     for candidate in all_movies:
         if candidate.get("poster") and len(candidate.get("description", "")) > 15:
@@ -187,20 +187,14 @@ def home():
     if not featured_movie and all_movies:
         featured_movie = all_movies[0]
 
-    # Curate Netflix Content Rows for homepage
+    is_filtered = bool((genre and genre != "All") or query or status)
+
+    # Curate Content Rows for homepage using accurate database genre filters
     trending_movies = all_movies[:18]
-    bollywood_movies = [
-        m for m in all_movies
-        if 'bollywood' in m.get('genre', '').lower() or 'hindi' in m.get('title', '').lower()
-    ][:18]
-    dual_audio_movies = [
-        m for m in all_movies
-        if 'dual' in m.get('genre', '').lower() or 'dual audio' in m.get('title', '').lower()
-    ][:18]
-    series_movies = [
-        m for m in all_movies
-        if 'series' in m.get('genre', '').lower() or 'season' in m.get('title', '').lower()
-    ][:18]
+    hollywood_movies = db.get_all_movies(genre='Hollywood')[:18]
+    bollywood_movies = db.get_all_movies(genre='Bollywood')[:18]
+    dual_audio_movies = db.get_all_movies(genre='Dual Audio')[:18]
+    series_movies = db.get_all_movies(genre='Series')[:18]
 
     return render_template(
         'index.html',
@@ -210,8 +204,10 @@ def home():
         query=query,
         status=status,
         genre=genre or "All",
+        is_filtered=is_filtered,
         featured_movie=featured_movie,
         trending_movies=trending_movies,
+        hollywood_movies=hollywood_movies,
         bollywood_movies=bollywood_movies,
         dual_audio_movies=dual_audio_movies,
         series_movies=series_movies,

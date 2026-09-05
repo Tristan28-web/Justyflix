@@ -360,12 +360,30 @@ class MWLBDScraper:
 
                 slug_id = self._generate_id(f"{clean_title} 2026")
 
-                # Detect genre keywords
+                # Detect genre keywords accurately
                 detected_genres = []
                 title_lower = raw_title.lower()
-                for kw, g in [("hindi", "Bollywood"), ("dual audio", "Dual Audio"), ("dubbed", "Hindi Dubbed"), ("action", "Action"), ("horror", "Horror"), ("comedy", "Comedy"), ("series", "TV Series"), ("anime", "Anime")]:
-                    if kw in title_lower:
+                
+                # Check for Hollywood / Dual Audio English
+                if re.search(r'\[hindi org & eng\]|\[eng & hindi\]|\[hindi & eng\]|\[hindi dubbed\]', title_lower):
+                    detected_genres.append("Hollywood English")
+                    detected_genres.append("Dual Audio")
+                elif re.search(r'\[hindi org & tamil\]|\[tamil & hindi\]', title_lower):
+                    detected_genres.append("Tamil")
+                    detected_genres.append("Dual Audio")
+                elif re.search(r'\[hindi org & telugu\]|\[telugu & hindi\]', title_lower):
+                    detected_genres.append("Telugu")
+                    detected_genres.append("Dual Audio")
+                elif re.search(r'\[hindi org & korean\]|\[korean & hindi\]', title_lower):
+                    detected_genres.append("Korean")
+                    detected_genres.append("Dual Audio")
+                elif "hindi" in title_lower and not any(k in title_lower for k in ['org & eng', 'org & tamil', 'org & telugu', 'org & korean']):
+                    detected_genres.append("Bollywood Hindi")
+
+                for kw, g in [("action", "Action"), ("adventure", "Adventure"), ("horror", "Horror"), ("comedy", "Comedy"), ("drama", "Drama"), ("crime", "Crime"), ("thriller", "Thriller"), ("series", "TV Series"), ("anime", "Anime")]:
+                    if kw in title_lower and g not in detected_genres:
                         detected_genres.append(g)
+                        
                 genre = ", ".join(detected_genres) if detected_genres else "General"
 
                 candidate = {
@@ -580,10 +598,19 @@ class MWLBDScraper:
 
         # 4. Genre
         genre_tags = []
-        for g in soup.find_all('a', href=True):
-            if '/genre/' in g['href']:
-                genre_tags.append(g.text.strip())
-        genre = ", ".join(dict.fromkeys(genre_tags)) if genre_tags else "Action, Drama"
+        sg = soup.find('div', class_='sgeneros')
+        if sg:
+            for a in sg.find_all('a'):
+                t = a.get_text().strip()
+                if t and not any(res in t for res in ['1080p', '4K', '720p', 'HEVC', 'Full HD', '2K']):
+                    genre_tags.append(t)
+        if not genre_tags:
+            for g in soup.find_all('a', href=True):
+                if '/genre/' in g['href']:
+                    t = g.text.strip()
+                    if t and not any(res in t for res in ['1080p', '4K', '720p', 'HEVC', 'Full HD', '2K']):
+                        genre_tags.append(t)
+        genre = ", ".join(dict.fromkeys(genre_tags)) if genre_tags else "General"
 
         # 5. Director & Cast
         director = "Not Available"

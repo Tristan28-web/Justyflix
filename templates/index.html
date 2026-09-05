@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
-{% block title %}Netflix - Stream & Direct Google Drive Downloader{% endblock %}
+{% block title %}Justyflix - Stream & Direct Google Drive Downloader{% endblock %}
 
 {% block content %}
 <!-- ==========================================================================
-     CINEMATIC BILLBOARD / HERO SECTION (NETFLIX STYLE)
+     CINEMATIC BILLBOARD / HERO SECTION (JUSTYFLIX STYLE)
      ========================================================================== -->
-{% if featured_movie %}
+{% if featured_movie and not is_filtered %}
 <section class="netflix-hero" style="background-image: url('{{ featured_movie.poster }}');">
   <div class="netflix-hero-overlay"></div>
   <div class="netflix-hero-content">
@@ -58,14 +58,15 @@
 <!-- ==========================================================================
      SUB-NAV TABS & GENRE PILLS (MATCHING REFERENCE IMAGE)
      ========================================================================== -->
-<div class="netflix-subnav-section">
+<div class="netflix-subnav-section {% if is_filtered or not featured_movie %}pt-5 mt-4{% endif %}">
   <!-- Horizontal Sub-Tabs -->
   <div class="netflix-tabs">
     <a href="{{ url_for('home') }}" class="netflix-tab {% if not genre or genre == 'All' %}active{% endif %}">Trending Now</a>
-    <a href="{{ url_for('home', genre='Bollywood') }}" class="netflix-tab {% if genre == 'Bollywood' %}active{% endif %}">Popular</a>
-    <a href="{{ url_for('home', genre='Series') }}" class="netflix-tab {% if genre == 'Series' %}active{% endif %}">Netflix Original</a>
-    <a href="{{ url_for('home', status='available') }}" class="netflix-tab {% if status == 'available' %}active{% endif %}">Premiers</a>
-    <a href="{{ url_for('home') }}" class="netflix-tab">Recently Added</a>
+    <a href="{{ url_for('home', genre='Hollywood') }}" class="netflix-tab {% if genre == 'Hollywood' %}active{% endif %}">Hollywood</a>
+    <a href="{{ url_for('home', genre='Bollywood') }}" class="netflix-tab {% if genre == 'Bollywood' %}active{% endif %}">Bollywood</a>
+    <a href="{{ url_for('home', genre='Series') }}" class="netflix-tab {% if genre == 'Series' %}active{% endif %}">TV Shows</a>
+    <a href="{{ url_for('home', genre='Dual Audio') }}" class="netflix-tab {% if genre == 'Dual Audio' %}active{% endif %}">Dual Audio</a>
+    <a href="{{ url_for('home', status='available') }}" class="netflix-tab {% if status == 'available' %}active{% endif %}">Direct GDrive</a>
   </div>
 
   <!-- Genre Pills Filter Row -->
@@ -83,8 +84,9 @@
 
 
 <!-- ==========================================================================
-     HORIZONTAL MOVIE CAROUSELS (NETFLIX SLIDERS WITH ARROWS)
+     HORIZONTAL MOVIE CAROUSELS (JUSTYFLIX SLIDERS WITH ARROWS)
      ========================================================================== -->
+{% if not is_filtered %}
 
 <!-- Row 1: Trending 2026 Releases -->
 {% if trending_movies %}
@@ -131,7 +133,52 @@
 {% endif %}
 
 
-<!-- Row 2: Popular in Bollywood 2026 -->
+<!-- Row 2: Hollywood English 2026 -->
+{% if hollywood_movies %}
+<section class="netflix-row">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">Hollywood English 2026</h2>
+  </div>
+
+  <div class="netflix-carousel-container">
+    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-hollywood', -600)">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+
+    <div class="netflix-carousel" id="carousel-hollywood">
+      {% for m in hollywood_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">Hollywood</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.9</span>
+            <span>2026</span>
+            <span class="quality">HD</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-hollywood', 600)">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- Row 3: Popular in Bollywood Hindi 2026 -->
 {% if bollywood_movies %}
 <section class="netflix-row">
   <div class="netflix-row-header">
@@ -176,7 +223,7 @@
 {% endif %}
 
 
-<!-- Row 3: Dual Audio & Multi-Language 2026 -->
+<!-- Row 4: Dual Audio & Multi-Language 2026 -->
 {% if dual_audio_movies %}
 <section class="netflix-row">
   <div class="netflix-row-header">
@@ -221,7 +268,7 @@
 {% endif %}
 
 
-<!-- Row 4: TV & Web Series 2026 -->
+<!-- Row 5: TV & Web Series 2026 -->
 {% if series_movies %}
 <section class="netflix-row">
   <div class="netflix-row-header">
@@ -265,6 +312,62 @@
 </section>
 {% endif %}
 
+{% else %}
+
+<!-- Dedicated Filtered Showcase Carousel -->
+{% if movies and movies|length > 6 %}
+<section class="netflix-row">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">
+      {% if query %}
+        Featured Matches for "{{ query }}"
+      {% elif genre and genre != 'All' %}
+        Featured {{ genre }} 2026 Releases
+      {% else %}
+        Featured Direct Downloads
+      {% endif %}
+    </h2>
+  </div>
+
+  <div class="netflix-carousel-container">
+    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-filtered', -600)">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+
+    <div class="netflix-carousel" id="carousel-filtered">
+      {% for m in movies[:18] %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">{{ genre if genre and genre != 'All' else '2026' }}</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.8</span>
+            <span>2026</span>
+            <span class="quality">HD</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-filtered', 600)">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+{% endif %}
+
 
 <!-- ==========================================================================
      FULL CATALOG GRID (PAGINATED WITH ZERO CLUTTER)
@@ -273,11 +376,13 @@
   <div class="netflix-row-header">
     <h2 class="netflix-row-title">
       {% if query %}
-        Search Results for "{{ query }}"
+        Search Results for "{{ query }}" ({{ pagination.total }} titles)
       {% elif genre and genre != 'All' %}
-        {{ genre }} 2026 Movies
+        {{ genre }} 2026 Movies & Series ({{ pagination.total }} titles)
+      {% elif status == 'available' %}
+        Direct Google Drive Downloads Available ({{ pagination.total }} titles)
       {% else %}
-        All 2026 Releases
+        All 2026 Releases ({{ pagination.total }} titles)
       {% endif %}
     </h2>
   </div>
@@ -295,7 +400,7 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
-          <span class="netflix-card-badge">{{ m.year or '2026' }}</span>
+          <span class="netflix-card-badge">{{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}</span>
         </div>
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>

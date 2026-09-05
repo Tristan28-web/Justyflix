@@ -318,8 +318,38 @@ class JSONDatabase:
                 movie_list = [m for m in movie_list if m.get("status") == status]
 
             if genre and genre.lower() != 'all':
-                g_lower = genre.lower()
-                movie_list = [m for m in movie_list if g_lower in m.get("genre", "").lower()]
+                g_clean = genre.strip()
+                g_lower = g_clean.lower()
+                
+                if g_lower == 'bollywood':
+                    def is_bollywood(m):
+                        genre_field = m.get("genre", "").lower()
+                        title_field = m.get("title", "").lower()
+                        desc_field = m.get("description", "").lower()
+                        # Strictly exclude Hollywood English / Western Dual Audio releases
+                        if any(x in genre_field for x in ['hollywood', 'english (hollywood)']) or any(x in desc_field for x in ['[hindi org & eng]', '[eng & hindi]', '[hindi & eng]']):
+                            return False
+                        # Exclude pure South Indian or Asian titles unless specifically categorized under Bollywood
+                        if any(x in genre_field for x in ['tamil', 'telugu', 'korean', 'malayalam', 'kannada']) and 'bollywood' not in genre_field:
+                            return False
+                        return 'bollywood' in genre_field or ('hindi' in genre_field and 'dubbed' not in genre_field) or ('hindi' in title_field and 'dubbed' not in title_field and 'eng' not in desc_field)
+                    movie_list = [m for m in movie_list if is_bollywood(m)]
+                elif g_lower == 'hollywood':
+                    def is_hollywood(m):
+                        genre_field = m.get("genre", "").lower()
+                        desc_field = m.get("description", "").lower()
+                        return 'hollywood' in genre_field or 'english' in genre_field or any(x in desc_field for x in ['[hindi org & eng]', '[eng & hindi]', '[hindi & eng]'])
+                    movie_list = [m for m in movie_list if is_hollywood(m)]
+                elif g_lower in ('sci-fi', 'science fiction'):
+                    movie_list = [m for m in movie_list if 'sci-fi' in m.get("genre", "").lower() or 'science fiction' in m.get("genre", "").lower()]
+                elif g_lower == 'anime':
+                    movie_list = [m for m in movie_list if any(x in m.get("genre", "").lower() for x in ['anime', 'animation', 'cartoon'])]
+                elif g_lower in ('series', 'tv shows', 'tv series'):
+                    movie_list = [m for m in movie_list if any(x in m.get("genre", "").lower() for x in ['series', 'tv show', 'tv/web series']) or 'season' in m.get("title", "").lower() or 'season' in m.get("description", "").lower()]
+                elif g_lower == 'dual audio':
+                    movie_list = [m for m in movie_list if 'dual audio' in m.get("genre", "").lower() or 'dual audio' in m.get("description", "").lower() or 'dual' in m.get("title", "").lower()]
+                else:
+                    movie_list = [m for m in movie_list if any(g_lower in t.strip().lower() for t in m.get("genre", "").split(','))]
 
             if query:
                 q_lower = query.lower()

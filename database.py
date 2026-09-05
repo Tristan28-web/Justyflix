@@ -125,7 +125,10 @@ class JSONDatabase:
 
             existing = data["movies"].get(movie_id, {})
 
-            # Prepare structured movie entry
+            # Preserve existing download links if incoming scraped update has none
+            incoming_links = movie.get("download_links")
+            download_links = incoming_links if incoming_links else existing.get("download_links", [])
+
             entry = {
                 "id": movie_id,
                 "title": movie.get("title", existing.get("title", "Untitled")),
@@ -136,15 +139,11 @@ class JSONDatabase:
                 "description": movie.get("description", existing.get("description", "")),
                 "poster": movie.get("poster", existing.get("poster", "")),
                 "source_url": movie.get("source_url", existing.get("source_url", "")),
-                "download_links": movie.get("download_links", existing.get("download_links", [])),
-                "status": movie.get("status", existing.get("status", "available")),
+                "download_links": download_links,
+                "status": "available" if download_links else movie.get("status", existing.get("status", "pending")),
                 "scraped_at": existing.get("scraped_at", now_iso),
                 "last_checked": now_iso
             }
-
-            # If download links exist, default status to available unless specified
-            if entry["download_links"] and entry["status"] == "pending":
-                entry["status"] = "available"
 
             data["movies"][movie_id] = entry
             data["stats"]["last_scrape"] = now_iso

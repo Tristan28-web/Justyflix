@@ -133,6 +133,7 @@ class MWLBDScraper:
                     size = col_texts[3]
 
                 # Look for links inside this row
+                found_row_link = False
                 for a in row.find_all('a', href=True):
                     href = a['href']
                     if 'drive.google.com' in href or 'docs.google.com' in href:
@@ -144,6 +145,27 @@ class MWLBDScraper:
                                 quality=quality,
                                 size=size
                             ))
+                            found_row_link = True
+
+                # If no direct link was found, inspect form in table row (MWLBD standard)
+                if not found_row_link:
+                    form = row.find('form')
+                    if form:
+                        form_action = form.get('action', '')
+                        link_id = form.get('id', '')
+                        row_key = f"{link_id}-{quality}"
+                        if row_key not in seen_urls:
+                            seen_urls.add(row_key)
+                            links.append({
+                                "url": form_action or self.base_url,
+                                "original_url": form_action or self.base_url,
+                                "preview_url": "",
+                                "type": "gdrive",
+                                "file_id": link_id,
+                                "label": f"Download ({quality})" if quality else "Download",
+                                "quality": quality or "HD",
+                                "size": size
+                            })
 
         # 3. Look for any other <a> tags containing drive.google.com
         for a in soup.find_all('a', href=True):

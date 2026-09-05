@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+
+{% block title %}Scraper Control & Live Feed | MWLBD Automation{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Header -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+      <h1 class="display-6 fw-bold text-white mb-1">
+        <i class="bi bi-robot text-info me-2"></i> MWLBD Scraper Dashboard
+      </h1>
+      <p class="text-muted mb-0">
+        Control automated background jobs, inspect scraped Google Drive links, or fetch on-demand titles.
+      </p>
+    </div>
+    <div>
+      <a href="{{ url_for('home') }}" class="btn btn-outline-light">
+        <i class="bi bi-arrow-left me-1"></i> Back to Movies
+      </a>
+    </div>
+  </div>
+
+  <!-- Status Alert Area -->
+  <div id="scrapeStatusBox">
+    {% if error_message %}
+    <div class="alert alert-danger py-2 mb-3">
+      <i class="bi bi-exclamation-triangle-fill me-2"></i> {{ error_message }}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Control Cards -->
+  <div class="row g-4 mb-4">
+    <!-- Manual Trigger Card -->
+    <div class="col-lg-6">
+      <div class="card bg-dark border-secondary p-4 h-100 shadow-sm">
+        <h5 class="text-white fw-bold mb-2">
+          <i class="bi bi-cloud-arrow-down-fill text-info me-2"></i> Trigger Catalog Scrape
+        </h5>
+        <p class="text-muted small">
+          Connects to MWLBD / Fojik mirror, scrapes latest movie releases, extracts all Google Drive links, and updates <code>movies.json</code> without downloading any files to the server.
+        </p>
+
+        <div class="row g-2 align-items-center mt-2">
+          <div class="col-auto">
+            <label for="scrapeLimitInput" class="text-muted small">Movies to scrape:</label>
+          </div>
+          <div class="col-auto">
+            <select id="scrapeLimitInput" class="form-select form-select-sm bg-secondary text-light border-0">
+              <option value="5">Top 5 Movies</option>
+              <option value="10" selected>Top 10 Movies</option>
+              <option value="20">Top 20 Movies</option>
+            </select>
+          </div>
+          <div class="col-12 mt-3">
+            <button id="btnTriggerScrape" class="btn btn-neon-purple w-100 py-2">
+              <i class="bi bi-play-circle-fill me-1"></i> Start Scraping Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- On-Demand URL Scrape -->
+    <div class="col-lg-6">
+      <div class="card bg-dark border-secondary p-4 h-100 shadow-sm">
+        <h5 class="text-white fw-bold mb-2">
+          <i class="bi bi-link-45deg text-info me-2"></i> On-Demand Movie Scrape
+        </h5>
+        <p class="text-muted small">
+          Enter any specific MWLBD or Fojik movie URL to immediately scrape its metadata and Google Drive download links.
+        </p>
+
+        <form action="" method="get" onsubmit="event.preventDefault(); const val = document.getElementById('customUrlInput').value.trim(); if(val) window.location.href='/scrape-details/' + encodeURIComponent(val);">
+          <div class="input-group mt-3">
+            <input
+              type="url"
+              id="customUrlInput"
+              class="form-control bg-secondary text-light border-0"
+              placeholder="https://fojik.site/movie/example-2024/"
+              required
+            >
+            <button class="btn btn-info text-dark fw-bold" type="submit">
+              <i class="bi bi-search me-1"></i> Scrape URL
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Database & Worker Statistics -->
+  <div class="card bg-dark border-secondary p-4 mb-4 shadow-sm">
+    <h5 class="text-white fw-bold mb-3"><i class="bi bi-activity text-info me-2"></i> System & Database Status</h5>
+    <div class="row text-center g-3">
+      <div class="col-6 col-md-3">
+        <div class="stat-pill">
+          <div class="text-muted small">Total Catalog</div>
+          <div class="fs-4 fw-bold text-white">{{ stats.total }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-pill">
+          <div class="text-muted small">Available Links</div>
+          <div class="fs-4 fw-bold text-success">{{ stats.available }}</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-pill">
+          <div class="text-muted small">Background Schedule</div>
+          <div class="fs-4 fw-bold text-info">Every 6h</div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-pill">
+          <div class="text-muted small">Last Activity</div>
+          <div class="small fw-bold text-warning text-truncate mt-1">
+            {{ stats.last_scrape[:19] if stats.last_scrape else 'Not Scraped Yet' }}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Scraped Movies & Discovered Links -->
+  <div class="card bg-dark border-secondary p-4 shadow-sm">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <h5 class="text-white fw-bold mb-0">
+        <i class="bi bi-list-check text-info me-2"></i> Recently Discovered Google Drive Links
+      </h5>
+      <span class="badge bg-secondary text-light">{{ recent_movies|length }} indexed</span>
+    </div>
+
+    {% if recent_movies %}
+    <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle mb-0">
+        <thead>
+          <tr class="text-muted small text-uppercase">
+            <th scope="col">Movie</th>
+            <th scope="col">Year</th>
+            <th scope="col">Discovered G-Drive Links</th>
+            <th scope="col">Status</th>
+            <th scope="col" class="text-end">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in recent_movies %}
+          <tr>
+            <td>
+              <div class="d-flex align-items-center gap-3">
+                {% if m.poster %}
+                <img src="{{ m.poster }}" alt="{{ m.title }}" width="38" height="54" class="rounded object-fit-cover" onerror="this.onerror=null; this.src='https://placehold.co/38x54/151d30/ffffff?text=IMG';">
+                {% endif %}
+                <div>
+                  <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="text-white fw-semibold text-decoration-none">
+                    {{ m.title }}
+                  </a>
+                  <div class="small text-muted text-truncate" style="max-width: 200px;">
+                    {{ m.genre }}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td>
+              <span class="badge bg-secondary">{{ m.year or 'N/A' }}</span>
+            </td>
+            <td>
+              {% if m.download_links and m.download_links|length > 0 %}
+              <div class="d-flex flex-column gap-1">
+                {% for dl in m.download_links[:2] %}
+                <div class="d-flex align-items-center gap-2">
+                  <span class="badge bg-info text-dark" style="font-size: 0.72rem;">{{ dl.quality or 'GDrive' }}</span>
+                  <a href="{{ dl.url }}" target="_blank" rel="noopener noreferrer" class="small text-info text-truncate" style="max-width: 250px;">
+                    {{ dl.url }}
+                  </a>
+                  <button class="btn btn-sm btn-outline-info p-0 px-1 btn-copy-link" data-link="{{ dl.url }}" title="Copy Link">
+                    <i class="bi bi-clipboard" style="font-size: 0.75rem;"></i>
+                  </button>
+                </div>
+                {% endfor %}
+                {% if m.download_links|length > 2 %}
+                <small class="text-muted">+{{ m.download_links|length - 2 }} more links</small>
+                {% endif %}
+              </div>
+              {% else %}
+              <span class="text-muted small">No links parsed</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="badge {% if m.status == 'available' %}badge-status-available{% else %}badge-status-pending{% endif %} text-uppercase small">
+                {{ m.status }}
+              </span>
+            </td>
+            <td class="text-end">
+              <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="btn btn-sm btn-outline-light">
+                <i class="bi bi-arrow-right"></i> View
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-4 text-muted">
+      <i class="bi bi-inbox fs-2 d-block mb-2"></i>
+      No movies scraped yet. Click "Start Scraping Now" above.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

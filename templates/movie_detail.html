@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block title %}{{ movie.title }} ({{ movie.year }}) - Direct Google Drive Download{% endblock %}
+
+{% block content %}
+<div class="container py-4">
+  <!-- Breadcrumb -->
+  <nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{{ url_for('home') }}" class="text-info text-decoration-none"><i class="bi bi-house me-1"></i>Home</a></li>
+      <li class="breadcrumb-item active text-muted" aria-current="page">{{ movie.title }}</li>
+    </ol>
+  </nav>
+
+  <div class="row g-4">
+    <!-- Left Column: Poster & Quick Info -->
+    <div class="col-lg-4 col-md-5">
+      <div class="card bg-dark border-secondary overflow-hidden shadow">
+        <div class="card-poster-container" style="padding-top: 140%;">
+          {% if movie.poster %}
+          <img src="{{ movie.poster }}" alt="{{ movie.title }}" class="card-poster" onerror="this.onerror=null; this.src='https://placehold.co/400x600/151d30/ffffff?text={{ movie.title|urlencode }}';">
+          {% else %}
+          <div class="d-flex align-items-center justify-content-center h-100 bg-secondary text-light">
+            <i class="bi bi-film fs-1"></i>
+          </div>
+          {% endif %}
+          {% if movie.year %}
+          <span class="badge-year fs-6">{{ movie.year }}</span>
+          {% endif %}
+        </div>
+
+        <div class="card-body p-3">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <span class="badge {% if movie.status == 'available' %}badge-status-available{% else %}badge-status-pending{% endif %} text-uppercase px-2 py-1">
+              {{ movie.status }}
+            </span>
+            <small class="text-muted">
+              <i class="bi bi-clock me-1"></i> {{ movie.scraped_at[:10] if movie.scraped_at else 'Recent' }}
+            </small>
+          </div>
+
+          <!-- Direct Share Buttons -->
+          <div class="d-flex gap-2">
+            <button class="btn btn-sm btn-outline-info flex-grow-1 btn-copy-link" data-link="{{ request.url }}">
+              <i class="bi bi-share-fill me-1"></i> Copy Page Link
+            </button>
+            {% if movie.source_url %}
+            <a href="{{ movie.source_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary" title="View on MWLBD source">
+              <i class="bi bi-box-arrow-up-right"></i>
+            </a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+
+      <!-- Feature Highlight Card -->
+      <div class="card bg-dark border-secondary p-3 mt-3">
+        <h6 class="text-info fw-bold mb-2">
+          <i class="bi bi-shield-check me-1"></i> Zero Server Bandwidth
+        </h6>
+        <p class="small text-muted mb-0">
+          This video file is hosted on Google Drive. When you click download, your browser establishes a direct HTTPS connection with Google's worldwide CDN servers for optimal download speed.
+        </p>
+      </div>
+    </div>
+
+    <!-- Right Column: Movie Details, Downloads, Video Preview -->
+    <div class="col-lg-8 col-md-7">
+      <!-- Title & Basic Badges -->
+      <div class="mb-3">
+        <h1 class="display-6 fw-bold text-white mb-2">{{ movie.title }}</h1>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+          {% if movie.year %}
+          <span class="badge bg-secondary">{{ movie.year }}</span>
+          {% endif %}
+          <span class="badge bg-info-subtle text-info border border-info-subtle">{{ movie.genre }}</span>
+          <span class="badge bg-dark border border-secondary text-success">
+            <i class="bi bi-google me-1"></i> Direct GDrive
+          </span>
+        </div>
+      </div>
+
+      <!-- Synopsis -->
+      <div class="card bg-dark border-secondary p-4 mb-4 shadow-sm">
+        <h5 class="text-info fw-bold mb-2"><i class="bi bi-card-text me-2"></i>Synopsis</h5>
+        <p class="text-light leading-relaxed mb-3">
+          {{ movie.description or 'No synopsis provided for this title.' }}
+        </p>
+
+        <div class="row gy-2 pt-3 border-top border-secondary-subtle">
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">Director</span>
+            <span class="text-white">{{ movie.director or 'Not Available' }}</span>
+          </div>
+          <div class="col-sm-6">
+            <span class="text-muted small d-block">Starring Cast</span>
+            <span class="text-white">{{ movie.cast or 'Not Available' }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Download Links Section -->
+      <div class="card bg-dark border-secondary p-4 mb-4 shadow-sm">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h4 class="text-white fw-bold mb-0">
+            <i class="bi bi-cloud-arrow-down-fill text-info me-2"></i> Direct Google Drive Downloads
+          </h4>
+          <span class="badge bg-primary-subtle text-primary">
+            {{ movie.download_links|length }} link(s) available
+          </span>
+        </div>
+
+        {% if movie.download_links and movie.download_links|length > 0 %}
+        <div class="d-flex flex-column gap-3">
+          {% for link in movie.download_links %}
+          <div class="download-item-card d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3">
+            <div class="d-flex align-items-center gap-3">
+              <div class="bg-primary bg-opacity-25 text-info p-3 rounded-3 text-center" style="min-width: 58px;">
+                <i class="bi bi-file-earmark-play-fill fs-3"></i>
+              </div>
+              <div>
+                <div class="fw-bold text-white fs-5">
+                  {{ link.label or 'Google Drive Download' }}
+                </div>
+                <div class="d-flex gap-2 align-items-center mt-1">
+                  {% if link.quality %}
+                  <span class="badge bg-info text-dark">{{ link.quality }}</span>
+                  {% endif %}
+                  {% if link.size %}
+                  <span class="badge bg-secondary">{{ link.size }}</span>
+                  {% endif %}
+                  <span class="text-muted small">
+                    <i class="bi bi-check-all text-success"></i> Direct Google CDN
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Download Action Buttons -->
+            <div class="d-flex gap-2 flex-wrap flex-md-nowrap align-items-center">
+              <a
+                href="{{ link.url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-gdrive-direct px-4 py-2"
+                title="Direct Download from Google Drive"
+              >
+                <i class="bi bi-download"></i> Direct Download
+              </a>
+              {% if link.original_url %}
+              <a
+                href="{{ link.original_url }}"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-outline-light btn-sm px-3 py-2"
+                title="Open Google Drive Page"
+              >
+                <i class="bi bi-box-arrow-up-right"></i> Drive View
+              </a>
+              {% endif %}
+              <button
+                type="button"
+                class="btn btn-outline-info btn-sm btn-copy-link py-2"
+                data-link="{{ link.url }}"
+                title="Copy Direct Link to Clipboard"
+              >
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        {% else %}
+        <div class="alert alert-warning mb-0">
+          <i class="bi bi-exclamation-circle me-2"></i> No direct Google Drive download links are indexed yet for this title. You can trigger an on-demand scrape below.
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Google Drive Video Stream / Preview Embed (Optional) -->
+      {% set preview_link = (movie.download_links | selectattr('preview_url') | first) %}
+      {% if preview_link and preview_link.preview_url %}
+      <div class="card bg-dark border-secondary p-4 shadow-sm">
+        <h5 class="text-info fw-bold mb-3">
+          <i class="bi bi-play-circle-fill me-2"></i> Direct Google Drive Stream Preview
+        </h5>
+        <div class="video-preview-wrapper">
+          <iframe
+            src="{{ preview_link.preview_url }}"
+            allow="autoplay; fullscreen"
+            allowfullscreen
+          ></iframe>
+        </div>
+        <small class="text-muted mt-2 d-block text-center">
+          Streamed directly via Google Drive CDN player.
+        </small>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

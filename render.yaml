@@ -1,0 +1,60 @@
+services:
+  # 1. Web Service (Flask + Gunicorn)
+  - type: web
+    name: mwlbd-gdrive-web
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn website:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DATABASE_FILE
+        value: /data/movies.json
+      - key: METADATA_FILE
+        value: /data/movies.json
+      - key: LOG_FILE
+        value: /data/logs/app.log
+      - key: SCRAPE_INTERVAL_HOURS
+        value: 6
+      - key: MAX_RETRIES
+        value: 3
+      - key: MWLBD_BASE_URL
+        value: https://fojik.site
+      - key: GOOGLE_DRIVE_DIRECT
+        value: true
+      - key: SECRET_KEY
+        generateValue: true
+    disk:
+      name: mwlbd-data
+      mountPath: /data
+      sizeGB: 1
+
+  # 2. Worker Service (APScheduler Background Scraper)
+  - type: worker
+    name: mwlbd-gdrive-worker
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python worker.py
+    envVars:
+      - key: DATABASE_FILE
+        value: /data/movies.json
+      - key: METADATA_FILE
+        value: /data/movies.json
+      - key: LOG_FILE
+        value: /data/logs/app.log
+      - key: SCRAPE_INTERVAL_HOURS
+        value: 6
+      - key: MAX_RETRIES
+        value: 3
+      - key: MWLBD_BASE_URL
+        value: https://fojik.site
+      - key: GOOGLE_DRIVE_DIRECT
+        value: true
+    disk:
+      name: mwlbd-data
+      mountPath: /data
+      sizeGB: 1

@@ -976,70 +976,53 @@ body {
 }
 
 /* ==========================================================================
-   HOMEPAGE 5-COLUMN NON-ANIMATING MOVIE & SERIES GRID (COMPACT POSTER MATCH)
+   HOMEPAGE MOVIE & SERIES WRAPPING GRID (FULL-WIDTH SCREEN COVERAGE)
    ========================================================================== */
 .latest-movies-section,
 .series-section {
-  max-width: 920px;
+  width: 100%;
+  max-width: 100%;
 }
 
 .sample-grid-5col {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 168px));
-  gap: 1.1rem 0.8rem;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 1.25rem 0.95rem;
   width: 100%;
-  max-width: 920px;
+  max-width: 100%;
 }
 
 .sample-grid-5col .netflix-card {
   width: 100%;
   min-width: 0;
-  max-width: 168px;
+  max-width: none;
   display: flex;
   flex-direction: column;
 }
 
 .sample-grid-5col .netflix-poster-box {
   width: 100%;
-  max-width: 168px;
   aspect-ratio: 2 / 3;
   height: auto;
   min-height: 0;
-  max-height: 252px;
+  max-height: none;
   border-radius: 6px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.55);
 }
 
 .sample-grid-5col .sample-card-title-line {
-  font-size: 0.82rem;
+  font-size: 0.84rem;
   font-weight: 600;
-  margin-top: 0.38rem;
-  margin-bottom: 0.12rem;
+  margin-top: 0.42rem;
+  margin-bottom: 0.15rem;
 }
 
 .sample-grid-5col .sample-card-subtext {
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   color: #888888;
 }
 
-@media (max-width: 992px) {
-  .latest-movies-section,
-  .series-section,
-  .sample-grid-5col {
-    max-width: 560px;
-  }
-  .sample-grid-5col {
-    grid-template-columns: repeat(3, minmax(0, 168px));
-    gap: 0.95rem 0.7rem;
-  }
-}
-
 @media (max-width: 576px) {
-  .latest-movies-section,
-  .series-section,
-  .sample-grid-5col {
-    max-width: 100%;
-  }
   .sample-grid-5col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem 0.5rem;

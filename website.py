@@ -131,6 +131,54 @@ def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4
             crawler_state["message"] = f"Crawl error: {e}"
 
 
+def start_background_auto_sync_daemon(interval_seconds: int = 1800):
+    """
+    Background daemon thread that periodically crawls page 1 of all active scrapers
+    every 30 minutes to discover and auto-index newly released movies and TV series.
+    Runs silently in the background without blocking the web application.
+    """
+    def _auto_sync_loop():
+        import time
+        logger.info(f"Background multi-source auto-sync daemon started (interval={interval_seconds}s).")
+        time.sleep(15)  # Short delay after startup
+        while True:
+            try:
+                logger.info("Auto-sync daemon: Checking multi-source providers for new 2026 releases...")
+                from scrapers.mwlbd_scraper import MWLBDScraper
+                from scrapers.bolly4u_scraper import Bolly4uScraper
+
+                scrapers = [MWLBDScraper(), Bolly4uScraper()]
+                new_releases_count = 0
+
+                for sc in scrapers:
+                    try:
+                        latest_items = sc.scrape_catalog_page(1)
+                        for item in latest_items[:10]:  # Top 10 newest
+                            movie_url = item.get("url") or item.get("source_url")
+                            if movie_url:
+                                details = sc.scrape_movie_details(movie_url)
+                                if details:
+                                    res = db.add_or_merge_movie(details)
+                                    if res:
+                                        new_releases_count += 1
+                    except Exception as ex_sc:
+                        logger.warning(f"Auto-sync error for provider {sc.provider_name}: {ex_sc}")
+
+                logger.info(f"Auto-sync cycle finished. Processed/merged {new_releases_count} titles across sources.")
+            except Exception as ex:
+                logger.error(f"Error in auto-sync daemon loop: {ex}")
+
+            time.sleep(interval_seconds)
+
+    t = threading.Thread(target=_auto_sync_loop, daemon=True)
+    t.start()
+
+
+# Start background auto-sync daemon on server startup
+start_background_auto_sync_daemon(interval_seconds=1800)
+
+
+
 # Standard MWLBD Navigation Categories
 MWLBD_CATEGORIES = [
     {"label": "Bollywood Hindi", "genre": "Bollywood"},

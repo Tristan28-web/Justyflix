@@ -152,15 +152,22 @@ def is_series(movie: Dict[str, Any]) -> bool:
     title = str(movie.get("title", "")).strip()
     desc = str(movie.get("description", "")).strip()
     url = str(movie.get("source_url") or movie.get("url", "")).strip()
+    genre = str(movie.get("genre", "")).strip()
     combined = f"{title} {desc} {url}".lower()
+    genre_lower = genre.lower()
 
-    # 1. Obvious movie keywords that are NOT series
+    # 1. Obvious movie keywords that are NOT series unless explicit Season/Episode is present
     if re.search(r'\b(the movie|a movie|the immortal man|one last kill|special presentation)\b', combined):
-        if not re.search(r'\b(season\s*\d+|s0?\d|episode)\b', combined):
+        if not re.search(r'\b(seasons?\s*\d+|s0?\d+|episodes?)\b', combined):
             return False
 
-    # 2. Positive matches: explicit Season / Episode markers
-    if re.search(r'\b(season\s*\d+|s0?\d+|episode\s*\d+|episodes|complete\s*(series|season))\b', combined):
+    # 2. Genre indicators: Tv & Web Series, TV/WEB Series, TV Show (ignore "Superhero Movies & TV Series")
+    clean_genre = re.sub(r'movies\s*&\s*tv\s*series', '', genre_lower)
+    if re.search(r'\b(tv/web series|tv\s*&\s*web series|web series|tv show|tv shows|tv series)\b', clean_genre):
+        return True
+
+    # 3. Explicit Season / Episode / Series markers in title, description, or URL
+    if re.search(r'\b(seasons?\s*\d+|s0?\d+|episodes?\s*\d+|complete\s*(series|season)|web[- ]series)\b', combined):
         return True
 
     return False

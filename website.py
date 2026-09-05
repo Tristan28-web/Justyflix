@@ -6,7 +6,7 @@ from typing import Dict, Any
 from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context, send_from_directory
 from flask_cors import CORS
 from config import Config, setup_logger
-from database import db
+from database import db, is_series
 from scraper import MWLBDScraper
 from download_resolver import resolve_movie_direct_download, stream_mkv_with_auto_audio
 
@@ -207,6 +207,8 @@ def home():
         effective_genre = 'Dual Audio'
     elif nav == 'downloads':
         effective_status = 'available'
+    elif view == 'latest_movies':
+        effective_genre = 'Movie'
 
     pagination = db.get_paginated_movies(
         page=page,
@@ -286,14 +288,20 @@ def home():
 
     featured_movie = featured_movies[0] if featured_movies else None
 
-    # Curate Featured Carousel Movies (20 titles with poster)
-    featured_carousel_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:20]
+    # Curate pure movies only (strictly exclude any TV Series or Web Series)
+    pure_movies = [m for m in all_movies if not is_series(m) and m.get("poster")]
 
-    # Curate Latest Movies Grid Movies (45 titles = 5 horizontal x 9 vertical with poster)
-    homepage_latest_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:45]
+    # Curate pure TV & WEB Series only
+    pure_series = [m for m in all_movies if is_series(m) and m.get("poster")]
 
-    # Curate TV & WEB Series Grid Movies (25 titles = 5 horizontal x 5 vertical with poster)
-    homepage_series_movies = [enrich_movie(m) for m in db.get_all_movies(genre='Series') if m.get("poster")][:25]
+    # Curate Featured Carousel Movies (20 pure movies with poster)
+    featured_carousel_movies = [enrich_movie(m) for m in pure_movies][:20]
+
+    # Curate Latest Movies Grid Movies (45 pure movies = 5 horizontal x 9 vertical, NO SERIES!)
+    homepage_latest_movies = [enrich_movie(m) for m in pure_movies][:45]
+
+    # Curate TV & WEB Series Grid Movies (25 pure series = 5 horizontal x 5 vertical)
+    homepage_series_movies = [enrich_movie(m) for m in pure_series][:25]
 
     # Enrich paginated items for Dedicated Catalog Grid
     pagination["items"] = [enrich_movie(m) for m in pagination["items"]]

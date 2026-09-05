@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Justyflix - Stream & Direct Google Drive Downloader{% endblock %}
+{% block title %}Justyflix - Stream & Direct Downloader{% endblock %}
 
 {% block content %}
 <!-- ==========================================================================
@@ -31,7 +31,7 @@
 
     <!-- Synopsis -->
     <p class="netflix-hero-desc">
-      {{ featured_movie.description or 'A brand new 2026 cinematic release scraped directly from MWLBD with high-definition Google Drive streams and instant cloud downloads.' }}
+      {{ featured_movie.description or 'A brand new 2026 cinematic release with instant streaming and direct cloud downloads.' }}
     </p>
 
     <!-- Action Buttons -->
@@ -243,7 +243,7 @@
           <div class="netflix-card-meta">
             <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.4' }}</span>
             <span>2026</span>
-            <span class="quality">GDrive</span>
+            <span class="quality">Multi-Audio</span>
           </div>
         </div>
       </a>
@@ -370,7 +370,7 @@
       {% elif genre and genre != 'All' %}
         {{ genre }} 2026 Movies & Series ({{ pagination.total }} titles)
       {% elif status == 'available' %}
-        Direct Google Drive Downloads Available ({{ pagination.total }} titles)
+        Direct Downloads Available ({{ pagination.total }} titles)
       {% else %}
         All 2026 Releases ({{ pagination.total }} titles)
       {% endif %}

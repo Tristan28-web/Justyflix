@@ -324,7 +324,7 @@ def resolve_movie_direct_download(
                 "download_url": fallback,
                 "filename": f"movie_{target_quality}.mkv",
                 "quality": target_quality,
-                "source": "Google Drive Direct Stream",
+                "source": "Direct High-Speed Stream",
                 "error": None
             }
         elif fallback_url and fallback_url != "https://search.technews24.site/blog.php":

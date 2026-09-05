@@ -112,7 +112,7 @@ class MWLBDScraper:
         for u in gdrive_urls:
             if u not in seen_urls:
                 seen_urls.add(u)
-                links.append(self._format_gdrive_link(u, label="Direct Google Drive Download"))
+                links.append(self._format_gdrive_link(u, label="Direct Download"))
 
         # 2. Parse download tables on MWLBD
         tables = soup.find_all('table')
@@ -217,7 +217,7 @@ class MWLBDScraper:
                 img = article.select_one('.poster img')
                 poster_url = (img.get('src') or img.get('data-src') or "") if img else ""
 
-                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_text).strip(' -:|')
+                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|Google Drive.*|\[.*?\]|\(.*?\)', '', raw_text, flags=re.IGNORECASE).strip(' -:|')
                 if not clean_title:
                     clean_title = href.strip('/').split('/')[-1].replace('-', ' ').title()
 
@@ -258,7 +258,7 @@ class MWLBDScraper:
                     year_match = re.search(r'\b(20\d\d|19\d\d)\b', raw_text or href)
                     year = year_match.group(1) if year_match else ""
 
-                    clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_text).strip(' -:|')
+                    clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|Google Drive.*|\[.*?\]|\(.*?\)', '', raw_text, flags=re.IGNORECASE).strip(' -:|')
                     if not clean_title:
                         clean_title = slug.replace('-', ' ').title()
 
@@ -354,7 +354,7 @@ class MWLBDScraper:
                 raw_title = title_el.text.strip()
                 movie_url = urljoin(self.base_url, title_el.get('href', ''))
                 poster_url = (img_el.get('src') or img_el.get('data-src') or "") if img_el else ""
-                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[.*?\]|\(.*?\)', '', raw_title).strip(' -:|')
+                clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|Google Drive.*|\[.*?\]|\(.*?\)', '', raw_title, flags=re.IGNORECASE).strip(' -:|')
                 if not clean_title:
                     clean_title = movie_url.strip('/').split('/')[-1].replace('-', ' ').title()
 
@@ -571,9 +571,10 @@ class MWLBDScraper:
         raw_title = title_el.text.strip() if title_el else (soup.title.text.strip() if soup.title else "")
         # Clean title
         clean_title = re.sub(
-            r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|\[Complete\]|\(.*?\)',
+            r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|GDRive.*|Google Drive.*|\[Complete\]|\(.*?\)',
             '',
-            raw_title
+            raw_title,
+            flags=re.IGNORECASE
         ).strip(' -:|')
         if not clean_title:
             slug = movie_url.strip('/').split('/')[-1]

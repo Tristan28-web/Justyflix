@@ -11,7 +11,7 @@
         <i class="bi bi-robot text-info me-2"></i> MWLBD Scraper Dashboard
       </h1>
       <p class="text-muted mb-0">
-        Control automated background jobs, inspect scraped Google Drive links, or fetch on-demand titles.
+        Control automated background jobs, inspect scraped direct download links, or fetch on-demand titles.
       </p>
     </div>
     <div>
@@ -44,7 +44,7 @@
           </span>
         </div>
         <p class="text-muted small">
-          Crawls MWLBD / Fojik catalog archives across multiple pages, extracts all quality options (1080p, 720p, 480p) and Google Drive links directly into <code>movies.json</code> with zero local file downloads.
+          Crawls MWLBD / Fojik catalog archives across multiple pages, extracts all quality options (1080p, 720p, 480p) and direct download links directly into <code>movies.json</code> with zero local file downloads.
         </p>
 
         <div class="row g-2 align-items-center mt-2">
@@ -90,7 +90,7 @@
           <i class="bi bi-link-45deg text-info me-2"></i> On-Demand Movie Scrape
         </h5>
         <p class="text-muted small">
-          Enter any specific MWLBD or Fojik movie URL to immediately scrape its metadata and Google Drive download links.
+          Enter any specific MWLBD or Fojik movie URL to immediately scrape its metadata and direct download links.
         </p>
 
         <form action="" method="get" onsubmit="event.preventDefault(); const val = document.getElementById('customUrlInput').value.trim(); if(val) window.location.href='/scrape-details/' + encodeURIComponent(val);">
@@ -148,7 +148,7 @@
   <div class="card bg-dark border-secondary p-4 shadow-sm">
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h5 class="text-white fw-bold mb-0">
-        <i class="bi bi-list-check text-info me-2"></i> Recently Discovered Google Drive Links
+        <i class="bi bi-list-check text-info me-2"></i> Recently Discovered Download Links
       </h5>
       <span class="badge bg-secondary text-light">{{ recent_movies|length }} indexed</span>
     </div>
@@ -191,7 +191,7 @@
               <div class="d-flex flex-column gap-1">
                 {% for dl in m.download_links[:2] %}
                 <div class="d-flex align-items-center gap-2">
-                  <span class="badge bg-info text-dark" style="font-size: 0.72rem;">{{ dl.quality or 'GDrive' }}</span>
+                  <span class="badge bg-info text-dark" style="font-size: 0.72rem;">{{ dl.quality or 'Direct' }}</span>
                   <a href="{{ dl.url }}" target="_blank" rel="noopener noreferrer" class="small text-info text-truncate" style="max-width: 250px;">
                     {{ dl.url }}
                   </a>

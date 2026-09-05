@@ -426,7 +426,7 @@
   </div>
 
   {% if movies %}
-  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" id="movieGrid">
+  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2 g-sm-3" id="movieGrid">
     {% for m in movies %}
     <div class="col">
       <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card h-100">

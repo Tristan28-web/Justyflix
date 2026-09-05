@@ -377,6 +377,73 @@ class JSONDatabase:
             logger.info(f"Batch saved {saved_count} 2026+ movies successfully.")
             return saved_count
 
+    def add_or_merge_movie(self, movie_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Multi-Source Deduplication & Aggregation:
+        Checks if movie already exists by ID or title match.
+        If existing, merges download links across sources and enriches missing metadata.
+        If new, saves as a fresh entry.
+        """
+        if not movie_data or not movie_data.get("title"):
+            return None
+        if not is_2026_or_future(movie_data):
+            return None
+
+        with _db_lock:
+            data = self._read_data()
+            movies = data.get("movies", {})
+            movie_id = str(movie_data.get("id") or "")
+            target_title = re.sub(r'[^\w\s]', '', str(movie_data.get("title", "")).lower()).strip()
+            target_year = str(movie_data.get("year", "2026")).strip()
+
+            existing_id = None
+            if movie_id in movies:
+                existing_id = movie_id
+            else:
+                # Find matching movie by title and year
+                for m_id, m in movies.items():
+                    m_title = re.sub(r'[^\w\s]', '', str(m.get("title", "")).lower()).strip()
+                    m_year = str(m.get("year", "2026")).strip()
+                    if m_title == target_title and m_year == target_year:
+                        existing_id = m_id
+                        break
+
+            if existing_id:
+                existing = movies[existing_id]
+                # Merge download links without duplicating exact URLs
+                existing_links = existing.get("download_links", [])
+                seen_urls = {l.get("url") or l.get("original_url") for l in existing_links if l.get("url") or l.get("original_url")}
+
+                incoming_links = movie_data.get("download_links", [])
+                merged_count = 0
+                for inc in incoming_links:
+                    inc_url = inc.get("url") or inc.get("original_url")
+                    if inc_url and inc_url not in seen_urls:
+                        seen_urls.add(inc_url)
+                        existing_links.append(inc)
+                        merged_count += 1
+
+                existing["download_links"] = existing_links
+                if merged_count > 0:
+                    existing["status"] = "available"
+
+                # Enrich metadata if missing
+                if not existing.get("poster") and movie_data.get("poster"):
+                    existing["poster"] = movie_data["poster"]
+                if (not existing.get("description") or len(existing.get("description", "")) < 30) and movie_data.get("description"):
+                    existing["description"] = movie_data["description"]
+
+                now_iso = datetime.utcnow().isoformat()
+                existing["last_checked"] = now_iso
+                movies[existing_id] = existing
+                data["movies"] = movies
+                self._atomic_write(data)
+                logger.info(f"Merged {merged_count} new download links into existing title '{existing['title']}' ({existing_id}).")
+                return existing
+
+            return self.save_movie(movie_data)
+
+
     def clean_to_2026_and_future(self) -> int:
         """
         Prunes the database to keep ONLY verified 2026 and future releases.

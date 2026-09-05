@@ -90,45 +90,38 @@ def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4
             crawler_state["message"] = f"Crawled {processed}/{total_pages} pages ({scraped_count} 2026+ movies indexed)..."
 
     try:
-        scraper = MWLBDScraper()
+        from scrapers.mwlbd_scraper import MWLBDScraper
+        from scrapers.bolly4u_scraper import Bolly4uScraper
         from datetime import datetime
 
-        if target == "2026_archive":
-            result = scraper.crawl_2026_archive(
-                start_page=start_page,
-                end_page=start_page + num_pages - 1 if num_pages > 1 else None,
-                concurrency=concurrency,
-                progress_callback=_progress_cb
-            )
-            scraped = result.get("total_movies", 0)
-            pages = result.get("pages_crawled", num_pages)
-        elif num_pages >= 5:
-            # High-throughput multi-page catalog crawler
-            result = scraper.crawl_all_catalog_pages(
-                start_page=start_page,
-                end_page=start_page + num_pages - 1,
-                concurrency=concurrency,
-                progress_callback=_progress_cb
-            )
-            scraped = result.get("total_movies", 0)
-            pages = result.get("pages_crawled", num_pages)
-        else:
-            # Deep detail crawler
-            result = scraper.crawl_catalog(
-                start_page=start_page,
-                num_pages=num_pages,
-                concurrency=concurrency
-            )
-            scraped = result.get("total_scraped", 0)
-            pages = result.get("pages_crawled", num_pages)
+        scrapers = [MWLBDScraper(), Bolly4uScraper()]
+        total_scraped_all = 0
+        total_pages_all = 0
+
+        for sc in scrapers:
+            try:
+                logger.info(f"Running multi-source crawl for provider: {sc.provider_name}")
+                for p in range(start_page, start_page + num_pages):
+                    catalog_items = sc.scrape_catalog_page(p)
+                    for item in catalog_items:
+                        movie_url = item.get("url") or item.get("source_url")
+                        if movie_url:
+                            details = sc.scrape_movie_details(movie_url)
+                            if details:
+                                db.add_or_merge_movie(details)
+                                total_scraped_all += 1
+                    total_pages_all += 1
+                    _progress_cb(total_pages_all, num_pages * len(scrapers), total_scraped_all)
+            except Exception as sc_err:
+                logger.warning(f"Error during {sc.provider_name} crawl: {sc_err}")
 
         with _crawler_lock:
             crawler_state["is_running"] = False
-            crawler_state["pages_completed"] = pages
-            crawler_state["total_scraped"] = scraped
+            crawler_state["pages_completed"] = total_pages_all
+            crawler_state["total_scraped"] = total_scraped_all
             crawler_state["message"] = (
-                f"Successfully crawled {pages} page(s)! "
-                f"Saved/updated {scraped} 2026+ movies into database."
+                f"Multi-source crawl completed! "
+                f"Indexed/merged {total_scraped_all} 2026+ movies across sources."
             )
             crawler_state["last_run"] = datetime.utcnow().isoformat()
     except Exception as e:

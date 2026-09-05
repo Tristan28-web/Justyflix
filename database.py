@@ -91,16 +91,26 @@ class JSONDatabase:
                 except Exception as ex:
                     logger.warning(f"Failed to create pre-write backup: {ex}")
 
-            # Atomic write to .tmp file then rename
+            # Atomic write to .tmp file then rename with retry for Windows locking
+            import time
             tmp_path = f"{self.db_path}.tmp"
             try:
                 with open(tmp_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
-                # Atomic replace
-                if os.path.exists(self.db_path):
-                    os.replace(tmp_path, self.db_path)
-                else:
-                    os.rename(tmp_path, self.db_path)
+
+                # Retry replace up to 6 times if another thread/process is reading
+                for attempt in range(6):
+                    try:
+                        if os.path.exists(self.db_path):
+                            os.replace(tmp_path, self.db_path)
+                        else:
+                            os.rename(tmp_path, self.db_path)
+                        break
+                    except (PermissionError, OSError) as pe:
+                        if attempt < 5:
+                            time.sleep(0.08 * (attempt + 1))
+                        else:
+                            raise pe
             except Exception as e:
                 logger.error(f"Failed atomic write to {self.db_path}: {e}")
                 if os.path.exists(tmp_path):
@@ -138,7 +148,7 @@ class JSONDatabase:
                 "cast": movie.get("cast", existing.get("cast", "Unknown")),
                 "description": movie.get("description", existing.get("description", "")),
                 "poster": movie.get("poster", existing.get("poster", "")),
-                "source_url": movie.get("source_url", existing.get("source_url", "")),
+                "source_url": movie.get("source_url") or movie.get("url") or existing.get("source_url", ""),
                 "download_links": download_links,
                 "status": "available" if download_links else movie.get("status", existing.get("status", "pending")),
                 "scraped_at": existing.get("scraped_at", now_iso),
@@ -150,6 +160,51 @@ class JSONDatabase:
             self._atomic_write(data)
             logger.info(f"Saved movie: {entry['title']} (ID: {movie_id})")
             return entry
+
+    def save_movies_batch(self, movies_list: List[Dict[str, Any]]) -> int:
+        """
+        Batch add or update movies in JSON database with a single atomic write.
+        Dramatically improves throughput when scraping thousands of movies.
+        """
+        if not movies_list:
+            return 0
+
+        with _db_lock:
+            data = self._read_data()
+            now_iso = datetime.utcnow().isoformat()
+            saved_count = 0
+
+            for movie in movies_list:
+                if not movie or "id" not in movie:
+                    continue
+                movie_id = str(movie["id"])
+                existing = data["movies"].get(movie_id, {})
+
+                incoming_links = movie.get("download_links")
+                download_links = incoming_links if incoming_links else existing.get("download_links", [])
+
+                entry = {
+                    "id": movie_id,
+                    "title": movie.get("title", existing.get("title", "Untitled")),
+                    "year": str(movie.get("year", existing.get("year", ""))),
+                    "genre": movie.get("genre", existing.get("genre", "General")),
+                    "director": movie.get("director", existing.get("director", "Unknown")),
+                    "cast": movie.get("cast", existing.get("cast", "Unknown")),
+                    "description": movie.get("description", existing.get("description", "")),
+                    "poster": movie.get("poster", existing.get("poster", "")),
+                    "source_url": movie.get("source_url") or movie.get("url") or existing.get("source_url", ""),
+                    "download_links": download_links,
+                    "status": "available" if download_links else movie.get("status", existing.get("status", "pending")),
+                    "scraped_at": existing.get("scraped_at", now_iso),
+                    "last_checked": now_iso
+                }
+                data["movies"][movie_id] = entry
+                saved_count += 1
+
+            data["stats"]["last_scrape"] = now_iso
+            self._atomic_write(data)
+            logger.info(f"Batch saved {saved_count} movies successfully.")
+            return saved_count
 
     def get_movie(self, movie_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a movie by its ID."""

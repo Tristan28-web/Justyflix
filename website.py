@@ -124,22 +124,44 @@ def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4
         crawler_state["total_scraped"] = 0
         crawler_state["message"] = f"Crawling pages {start_page} to {start_page + num_pages - 1}..."
 
+    def _progress_cb(processed, total_pages, scraped_count):
+        with _crawler_lock:
+            crawler_state["pages_completed"] = processed
+            crawler_state["total_scraped"] = scraped_count
+            crawler_state["message"] = f"Crawled {processed}/{total_pages} pages ({scraped_count} movies indexed)..."
+
     try:
         scraper = MWLBDScraper()
-        result = scraper.crawl_catalog(
-            start_page=start_page,
-            num_pages=num_pages,
-            concurrency=concurrency
-        )
+        from datetime import datetime
+
+        if num_pages >= 5:
+            # High-throughput multi-page catalog crawler
+            result = scraper.crawl_all_catalog_pages(
+                start_page=start_page,
+                end_page=start_page + num_pages - 1,
+                concurrency=concurrency,
+                progress_callback=_progress_cb
+            )
+            scraped = result.get("total_movies", 0)
+            pages = result.get("pages_crawled", num_pages)
+        else:
+            # Deep detail crawler
+            result = scraper.crawl_catalog(
+                start_page=start_page,
+                num_pages=num_pages,
+                concurrency=concurrency
+            )
+            scraped = result.get("total_scraped", 0)
+            pages = result.get("pages_crawled", num_pages)
+
         with _crawler_lock:
             crawler_state["is_running"] = False
-            crawler_state["pages_completed"] = result.get("pages_crawled", num_pages)
-            crawler_state["total_scraped"] = result.get("total_scraped", 0)
+            crawler_state["pages_completed"] = pages
+            crawler_state["total_scraped"] = scraped
             crawler_state["message"] = (
-                f"Completed crawl of {result.get('pages_crawled')} page(s)! "
-                f"Successfully saved/updated {result.get('total_scraped')} movies."
+                f"Successfully crawled {pages} page(s)! "
+                f"Saved/updated {scraped} movies into database."
             )
-            from datetime import datetime
             crawler_state["last_run"] = datetime.utcnow().isoformat()
     except Exception as e:
         logger.error(f"Background crawl task encountered an error: {e}", exc_info=True)
@@ -211,6 +233,18 @@ def movie_detail(movie_id):
     movie = db.get_movie(movie_id)
     if not movie:
         abort(404)
+
+    # On-the-fly detail and Google Drive links enrichment if not yet deep-scraped
+    if (not movie.get('download_links') or len(movie['download_links']) == 0) and movie.get('source_url'):
+        try:
+            scraper = MWLBDScraper()
+            details = scraper.get_movie_details(movie['source_url'])
+            if details:
+                details['id'] = movie_id
+                movie = db.save_movie(details)
+        except Exception as ex:
+            logger.warning(f"On-demand detail scrape failed for {movie_id}: {ex}")
+
     return render_template('movie_detail.html', movie=movie, categories=MWLBD_CATEGORIES)
 
 

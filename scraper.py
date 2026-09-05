@@ -224,6 +224,7 @@ class MWLBDScraper:
                 discovered.append({
                     "title": clean_title,
                     "url": full_url,
+                    "source_url": full_url,
                     "poster": poster_url,
                     "year": year
                 })
@@ -238,12 +239,12 @@ class MWLBDScraper:
         if not html:
             return 1
         soup = BeautifulSoup(html, 'html.parser')
-        pagination = soup.select_one('.pagination, .pagination-area, .nav-links')
-        if pagination:
-            text = pagination.text
-            match = re.search(r'Page\s+\d+\s+of\s+(\d+)', text, re.I)
+        span = soup.select_one('.pagination span')
+        if span:
+            match = re.search(r'Page\s+\d+\s+of\s+(\d+)', span.text, re.I)
             if match:
                 return int(match.group(1))
+
         # Fallback to checking page numbers in links
         page_nums = []
         for a in soup.find_all('a', href=True):
@@ -251,7 +252,73 @@ class MWLBDScraper:
                 m = re.search(r'/page/(\d+)', a['href'])
                 if m:
                     page_nums.append(int(m.group(1)))
-        return max(page_nums) if page_nums else 1
+        return max(page_nums) if page_nums else 487
+
+    def crawl_all_catalog_pages(
+        self,
+        start_page: int = 1,
+        end_page: Optional[int] = None,
+        concurrency: int = 5,
+        progress_callback: Optional[Any] = None
+    ) -> Dict[str, Any]:
+        """
+        Crawls every catalog page across the entire MWLBD archive (up to end_page / 487+ pages).
+        Ingests all movies in high-throughput batches into movies.json.
+        """
+        import time
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from database import db
+
+        if not end_page:
+            end_page = self.get_total_catalog_pages()
+
+        logger.info(f"Starting FULL SITE CRAWL: Pages {start_page} to {end_page} (~{end_page * 45} movies)...")
+        total_movies_indexed = 0
+        pages_processed = 0
+
+        # Crawl pages in batches of 5
+        batch_size = 5
+        for p_start in range(start_page, end_page + 1, batch_size):
+            p_end = min(p_start + batch_size - 1, end_page)
+            pages_to_fetch = list(range(p_start, p_end + 1))
+
+            page_movies = []
+            with ThreadPoolExecutor(max_workers=concurrency) as executor:
+                future_to_page = {executor.submit(self.get_movies_from_page, p): p for p in pages_to_fetch}
+                for future in as_completed(future_to_page):
+                    try:
+                        movies_on_page = future.result()
+                        # Enrich each movie card with slug id and metadata
+                        for m in movies_on_page:
+                            slug_id = self._generate_id(f"{m['title']} {m['year']}")
+                            m["id"] = slug_id
+                            if "genre" not in m or not m["genre"]:
+                                # Infer genre from title keywords
+                                title_lower = m["title"].lower()
+                                detected_genres = []
+                                for kw, g in [("hindi", "Bollywood"), ("dual audio", "Dual Audio"), ("dubbed", "Hindi Dubbed"), ("action", "Action"), ("horror", "Horror"), ("comedy", "Comedy"), ("series", "TV Series"), ("anime", "Anime")]:
+                                    if kw in title_lower:
+                                        detected_genres.append(g)
+                                m["genre"] = ", ".join(detected_genres) if detected_genres else "General"
+                        page_movies.extend(movies_on_page)
+                    except Exception as e:
+                        logger.error(f"Error fetching page batch: {e}")
+
+            if page_movies:
+                saved = db.save_movies_batch(page_movies)
+                total_movies_indexed += saved
+
+            pages_processed += len(pages_to_fetch)
+            if progress_callback:
+                progress_callback(pages_processed, end_page - start_page + 1, total_movies_indexed)
+
+            logger.info(f"Progress: {pages_processed}/{end_page - start_page + 1} pages scraped. Total movies in catalog: {db.get_stats()['total']}")
+            time.sleep(0.2)  # Respectful pacing between page batches
+
+        return {
+            "pages_crawled": pages_processed,
+            "total_movies": total_movies_indexed
+        }
 
     def get_latest_movies(self, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """

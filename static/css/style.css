@@ -156,6 +156,38 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
+/* Justyflix Profile Dropdown */
+.justyflix-profile-menu {
+  background-color: #161616 !important;
+  border: 1px solid rgba(255, 255, 255, 0.15) !important;
+  border-radius: 8px !important;
+  min-width: 260px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.9) !important;
+  overflow: hidden;
+  margin-top: 0.6rem !important;
+}
+
+.justyflix-profile-header {
+  background-color: #1f1f1f;
+}
+
+.justyflix-dropdown-item {
+  color: #e5e5e5 !important;
+  text-decoration: none;
+  font-size: 0.86rem;
+  font-weight: 500;
+  padding: 0.6rem 1.25rem;
+  display: flex;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.justyflix-dropdown-item:hover {
+  background-color: rgba(255, 255, 255, 0.08);
+  color: #ffffff !important;
+  padding-left: 1.45rem;
+}
+
 /* ==========================================================================
    CINEMATIC BILLBOARD / HERO SECTION
    ========================================================================== */
@@ -698,32 +730,105 @@ body {
 }
 
 /* ==========================================================================
-   MINIMALIST NETFLIX FOOTER
+   JUSTYFLIX FOOTER LAYOUT & READINESS
    ========================================================================== */
 
 .netflix-footer {
   margin-top: auto;
-  padding: 3.5rem 3.5rem 2rem 3.5rem;
-  color: #757575;
+  padding: 4rem 2rem 3rem 2rem;
+  background-color: #111111;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  color: #999999;
   font-size: 0.85rem;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-.netflix-footer a {
-  color: #757575;
-  text-decoration: none;
-  transition: color 0.2s ease;
+.netflix-footer-container {
+  max-width: 1000px;
+  margin: 0 auto;
 }
 
-.netflix-footer a:hover {
+.netflix-footer-heading {
   color: #b3b3b3;
+  font-size: 0.95rem;
+  font-weight: 500;
+  margin-bottom: 1.75rem;
+}
+
+.netflix-footer-heading a {
+  color: #e5e5e5;
+  text-decoration: underline;
+}
+
+.netflix-footer-heading a:hover {
+  color: #ffffff;
 }
 
 .netflix-footer-links {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1rem 2rem;
   margin-bottom: 2rem;
+}
+
+.netflix-footer a {
+  color: #8c8c8c;
+  text-decoration: none;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  transition: color 0.2s ease;
+}
+
+.netflix-footer a:hover {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.netflix-footer-tools {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.75rem;
+}
+
+.netflix-lang-btn {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: border-color 0.2s ease;
+}
+
+.netflix-lang-btn:hover {
+  border-color: #ffffff;
+  color: #ffffff;
+}
+
+.netflix-service-code {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #8c8c8c;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: 2px;
+  letter-spacing: 0.5px;
+}
+
+.netflix-footer-disclaimer {
+  color: #737373;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  margin-top: 1rem;
+}
+
+@media (max-width: 768px) {
+  .netflix-footer-links {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 /* Responsive Rules */

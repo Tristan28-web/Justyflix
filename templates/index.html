@@ -56,19 +56,9 @@
 
 
 <!-- ==========================================================================
-     SUB-NAV TABS & GENRE PILLS (MATCHING REFERENCE IMAGE)
+     GENRE PILLS FILTER ROW (CLEAN INTERACTIVE FILTERING)
      ========================================================================== -->
 <div class="netflix-subnav-section {% if is_filtered or not featured_movie %}pt-5 mt-4{% endif %}">
-  <!-- Horizontal Sub-Tabs -->
-  <div class="netflix-tabs">
-    <a href="{{ url_for('home') }}" class="netflix-tab {% if not genre or genre == 'All' %}active{% endif %}">Trending Now</a>
-    <a href="{{ url_for('home', genre='Hollywood') }}" class="netflix-tab {% if genre == 'Hollywood' %}active{% endif %}">Hollywood</a>
-    <a href="{{ url_for('home', genre='Bollywood') }}" class="netflix-tab {% if genre == 'Bollywood' %}active{% endif %}">Bollywood</a>
-    <a href="{{ url_for('home', genre='Series') }}" class="netflix-tab {% if genre == 'Series' %}active{% endif %}">TV Shows</a>
-    <a href="{{ url_for('home', genre='Dual Audio') }}" class="netflix-tab {% if genre == 'Dual Audio' %}active{% endif %}">Dual Audio</a>
-    <a href="{{ url_for('home', status='available') }}" class="netflix-tab {% if status == 'available' %}active{% endif %}">Direct GDrive</a>
-  </div>
-
   <!-- Genre Pills Filter Row -->
   <div class="netflix-pills-row">
     {% for g in netflix_genres %}

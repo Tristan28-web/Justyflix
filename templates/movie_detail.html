@@ -187,7 +187,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const resp = await fetch(`/api/resolve-download/${movieId}/${linkIdx}`);
         const data = await resp.json();
 
-        if (data.download_url) {
+        if (data.status === 'success' && data.download_url) {
           this.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality} to PC!`;
           
           // Trigger immediate browser file download to local PC
@@ -204,13 +204,30 @@ document.addEventListener('DOMContentLoaded', function() {
             this.disabled = false;
             this.style.pointerEvents = 'auto';
           }, 3500);
+        } else if (data.download_url && data.download_url.startsWith('http')) {
+          this.innerHTML = `<i class="bi bi-arrow-down-circle-fill text-info me-2"></i> Connecting to mirror...`;
+          window.location.href = data.download_url;
+          setTimeout(() => {
+            this.innerHTML = originalHtml;
+            this.disabled = false;
+            this.style.pointerEvents = 'auto';
+          }, 3500);
         } else {
-          // Fallback to direct navigation
-          window.location.href = `/download/${movieId}/${linkIdx}`;
+          this.innerHTML = `<i class="bi bi-arrow-clockwise text-warning me-2"></i> Stream refreshing, try again`;
+          setTimeout(() => {
+            this.innerHTML = originalHtml;
+            this.disabled = false;
+            this.style.pointerEvents = 'auto';
+          }, 3500);
         }
       } catch (err) {
-        console.warn('API download resolve error, falling back to direct route:', err);
-        window.location.href = `/download/${movieId}/${linkIdx}`;
+        console.warn('API download resolve error:', err);
+        this.innerHTML = `<i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> Error connecting`;
+        setTimeout(() => {
+          this.innerHTML = originalHtml;
+          this.disabled = false;
+          this.style.pointerEvents = 'auto';
+        }, 3000);
       }
     });
   });

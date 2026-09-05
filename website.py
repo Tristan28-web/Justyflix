@@ -8,7 +8,7 @@ from flask_cors import CORS
 from config import Config, setup_logger
 from database import db, is_series
 from scraper import MWLBDScraper
-from download_resolver import resolve_movie_direct_download, stream_mkv_with_auto_audio
+from download_resolver import resolve_movie_direct_download, stream_mkv_with_auto_audio, download_cache, verify_r2_url
 
 logger = setup_logger('website')
 
@@ -473,7 +473,18 @@ def download_movie(movie_id, link_idx):
     )
 
     if not res.get('success') or not res.get('download_url'):
-        return redirect(fallback_url or source_url)
+        # Attempt one forced refresh before giving up
+        res = resolve_movie_direct_download(
+            source_url=source_url,
+            target_quality=quality,
+            fallback_url=fallback_url,
+            file_id=file_id,
+            force_refresh=True
+        )
+
+    if not res.get('success') or not res.get('download_url'):
+        logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Falling back safely.")
+        return redirect(url_for('movie_detail', movie_id=movie_id))
 
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
@@ -495,8 +506,35 @@ def download_movie(movie_id, link_idx):
         resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
         return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
     except Exception as ex:
-        logger.warning(f"Streaming auto-audio failed, redirecting directly: {ex}")
-        return redirect(r2_url, code=302)
+        logger.warning(f"Streaming auto-audio failed ({ex}). Evicting cache and attempting fresh re-resolution...")
+        cache_key = f"{source_url}:{quality}:{file_id}"
+        download_cache.delete(cache_key)
+
+        fresh_res = resolve_movie_direct_download(
+            source_url=source_url,
+            target_quality=quality,
+            fallback_url=fallback_url,
+            file_id=file_id,
+            force_refresh=True
+        )
+        if fresh_res.get('success') and fresh_res.get('download_url'):
+            fresh_url = fresh_res['download_url']
+            try:
+                gen, status, resp_hdrs = stream_mkv_with_auto_audio(
+                    r2_url=fresh_url,
+                    is_bollywood=is_bollywood,
+                    range_header=request.headers.get('Range')
+                )
+                resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
+                return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
+            except Exception as ex2:
+                logger.warning(f"Fresh stream retry failed ({ex2}). Checking direct R2 before redirect...")
+                if verify_r2_url(fresh_url, timeout=3.0):
+                    return redirect(fresh_url, code=302)
+
+        # NEVER redirect to an expired or unverified URL!
+        logger.error(f"Cannot resolve valid stream for {movie_id}. Returning safely to movie detail page.")
+        return redirect(url_for('movie_detail', movie_id=movie_id))
 
 
 @app.route('/api/resolve-download/<movie_id>/<int:link_idx>', methods=['GET'])
@@ -526,6 +564,18 @@ def api_resolve_download(movie_id, link_idx):
         file_id=file_id
     )
 
+    # If resolved URL fails live verification, force a fresh scrape
+    if res.get('success') and res.get('download_url') and not verify_r2_url(res['download_url'], timeout=3.0):
+        cache_key = f"{source_url}:{quality}:{file_id}"
+        download_cache.delete(cache_key)
+        res = resolve_movie_direct_download(
+            source_url=source_url,
+            target_quality=quality,
+            fallback_url=fallback_url,
+            file_id=file_id,
+            force_refresh=True
+        )
+
     if res.get('success') and res.get('download_url'):
         download_endpoint = url_for('download_movie', movie_id=movie_id, link_idx=link_idx)
         return jsonify({
@@ -542,7 +592,7 @@ def api_resolve_download(movie_id, link_idx):
             "download_url": fallback_url or source_url,
             "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
             "quality": quality,
-            "message": res.get('error', 'Using direct fallback stream.')
+            "message": res.get('error', 'Download server link is currently refreshing. Please try again in a moment.')
         }), 200
 
 

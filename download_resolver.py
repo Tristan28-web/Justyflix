@@ -26,7 +26,7 @@ HEADERS = {
 class DownloadCache:
     """Thread-safe in-memory cache with TTL for resolved direct download URLs."""
     
-    def __init__(self, default_ttl_seconds: int = 10800):  # 3 hours default
+    def __init__(self, default_ttl_seconds: int = 1800):  # 30 minutes default safe TTL
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
         self.default_ttl = default_ttl_seconds
@@ -49,9 +49,57 @@ class DownloadCache:
                 'expires_at': time.time() + ttl_val
             }
 
+    def delete(self, key: str) -> None:
+        with self._lock:
+            self._cache.pop(key, None)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
 
 # Global cache instance
 download_cache = DownloadCache()
+
+
+def verify_r2_url(url: str, timeout: float = 3.5) -> bool:
+    """
+    Performs a lightweight HTTP range request (bytes=0-0) to verify that
+    the presigned Cloudflare R2 URL is alive, valid, and not expired.
+    Returns True if status is 200 or 206 and not an XML error.
+    Returns False if status is 400/403 (ExpiredRequest/AccessDenied) or times out.
+    """
+    if not url or not isinstance(url, str):
+        return False
+    if 'r2.cloudflarestorage.com' not in url:
+        return True
+
+    import ssl
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    req = urllib.request.Request(
+        url,
+        headers={
+            'Range': 'bytes=0-0',
+            'User-Agent': HEADERS['User-Agent']
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=timeout) as resp:
+            if resp.status in (200, 206):
+                ct = resp.headers.get('Content-Type', '')
+                if 'xml' in ct.lower():
+                    return False
+                return True
+            return False
+    except urllib.error.HTTPError as e:
+        logger.warning(f"R2 URL verification failed ({e.code} {e.reason}) for {url[:90]}...")
+        return False
+    except Exception as ex:
+        logger.warning(f"R2 URL verification check exception: {ex}")
+        return False
 
 
 def resolve_movie_direct_download(
@@ -59,10 +107,12 @@ def resolve_movie_direct_download(
     target_quality: str = "1080p",
     fallback_url: str = "",
     file_id: str = "",
-    timeout: int = 12
+    timeout: int = 12,
+    force_refresh: bool = False
 ) -> Dict[str, Any]:
     """
     Resolves a movie's quality download link to its direct Cloudflare R2 CDN download URL.
+    Verifies that the resolved URL is active and unexpired before caching/returning.
     Returns:
         {
             "success": bool,
@@ -74,25 +124,32 @@ def resolve_movie_direct_download(
         }
     """
     cache_key = f"{source_url}:{target_quality}:{file_id}"
-    cached = download_cache.get(cache_key)
-    if cached:
-        logger.info(f"Returning cached direct download URL for {cache_key}")
-        return cached
+    if not force_refresh:
+        cached = download_cache.get(cache_key)
+        if cached:
+            cached_url = cached.get('download_url', '')
+            if verify_r2_url(cached_url, timeout=3.0):
+                logger.info(f"Returning verified cached direct download URL for {cache_key}")
+                return cached
+            else:
+                logger.info(f"Cached direct download URL expired or invalid for {cache_key}. Evicting and refreshing.")
+                download_cache.delete(cache_key)
 
     logger.info(f"Resolving direct download for {source_url} ({target_quality})")
 
-    # If fallback is already a direct drive or file link, use it
+    # If fallback is already a direct drive or file link, verify and use it
     if fallback_url and ('drive.google.com' in fallback_url or 'r2.cloudflarestorage.com' in fallback_url):
-        res = {
-            "success": True,
-            "download_url": fallback_url,
-            "filename": f"movie_{target_quality}.mkv",
-            "quality": target_quality,
-            "source": "Direct Link",
-            "error": None
-        }
-        download_cache.set(cache_key, res)
-        return res
+        if verify_r2_url(fallback_url, timeout=3.0):
+            res = {
+                "success": True,
+                "download_url": fallback_url,
+                "filename": f"movie_{target_quality}.mkv",
+                "quality": target_quality,
+                "source": "Direct Link",
+                "error": None
+            }
+            download_cache.set(cache_key, res, ttl=1800)
+            return res
 
     try:
         # Step 1: Fetch source movie page
@@ -300,6 +357,20 @@ def resolve_movie_direct_download(
             if 'r2.cloudflarestorage.com' in href:
                 fn_match = re.search(r'filename%3D%22([^%"]+)%22', href) or re.search(r'filename="([^"]+)"', href)
                 filename = urllib.parse.unquote(fn_match.group(1)) if fn_match else f"Movie_{target_quality}.mkv"
+                
+                # Verify URL is alive and not expired before accepting
+                if not verify_r2_url(href, timeout=3.5):
+                    logger.warning(f"R2 URL from boabd failed live verification (likely expired token): {href[:90]}...")
+                    continue
+
+                # Compute safe TTL from X-Amz-Expires
+                ttl = 1800
+                exp_m = re.search(r'X-Amz-Expires=(\d+)', href)
+                if exp_m:
+                    ttl = min(int(exp_m.group(1)) - 300, 3600)
+                    if ttl < 300:
+                        ttl = 300
+
                 res = {
                     "success": True,
                     "download_url": href,
@@ -308,11 +379,11 @@ def resolve_movie_direct_download(
                     "source": "Cloudflare R2 High-Speed CDN",
                     "error": None
                 }
-                download_cache.set(cache_key, res)
-                logger.info(f"Successfully resolved direct R2 URL: {filename}")
+                download_cache.set(cache_key, res, ttl=ttl)
+                logger.info(f"Successfully resolved verified direct R2 URL: {filename} (TTL={ttl}s)")
                 return res
 
-        raise Exception("Direct R2 CDN link not generated on storage server.")
+        raise Exception("Direct R2 CDN link not active or not generated on storage server.")
 
     except Exception as ex:
         logger.error(f"Download resolution error for {source_url} ({target_quality}): {ex}")

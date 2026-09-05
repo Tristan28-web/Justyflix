@@ -1,249 +1,352 @@
 {% extends "base.html" %}
 
-{% block title %}2026 Movies & Web Series | Direct Google Drive Download{% endblock %}
+{% block title %}Netflix - Stream & Direct Google Drive Downloader{% endblock %}
 
 {% block content %}
-<div class="container py-4">
-  <!-- Hero / Header Banner -->
-  <div class="row align-items-center mb-4 g-3">
-    <div class="col-lg-7">
-      <div class="d-inline-flex align-items-center hero-badge mb-2">
-        <i class="bi bi-fire me-1 text-danger"></i> 2026 Releases & Future Movies &bull; Zero Server Storage
-      </div>
-      <h1 class="display-6 fw-bold mb-2 text-white">2026 Movies & Web Series</h1>
-      <p class="text-muted mb-0">
-        High-definition 2026 releases and future drops scraped directly from MWLBD. Download directly via Google Drive at full CDN speeds with zero local server storage.
-      </p>
-    </div>
-
-    <!-- Stats Card -->
-    <div class="col-lg-5">
-      <div class="card bg-dark border-secondary p-3 shadow-sm">
-        <div class="row text-center g-2">
-          <div class="col-4">
-            <div class="text-muted small">2026+ Movies</div>
-            <div class="fs-4 fw-bold text-info">{{ stats.total }}</div>
-          </div>
-          <div class="col-4 border-start border-end border-secondary">
-            <div class="text-muted small">Available</div>
-            <div class="fs-4 fw-bold text-success">{{ stats.available }}</div>
-          </div>
-          <div class="col-4">
-            <div class="text-muted small">Disk Usage</div>
-            <div class="fs-4 fw-bold text-warning">0 MB</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Search & Filters -->
-  <div class="card bg-dark border-secondary p-3 mb-4 shadow-sm">
-    <div class="row g-3 align-items-center">
-      <!-- Search Box -->
-      <div class="col-md-7 col-lg-8">
-        <div class="search-box-wrap">
-          <i class="bi bi-search search-icon"></i>
-          <input
-            type="text"
-            id="movieSearchInput"
-            class="form-control search-input"
-            placeholder="Instant search by title, genre, year, director, or cast..."
-            value="{{ query or '' }}"
-          >
-        </div>
-      </div>
-
-      <!-- Status & Category Filter -->
-      <div class="col-md-5 col-lg-4 text-md-end d-flex gap-2 justify-content-md-end">
-        <a href="{{ url_for('home') }}" class="btn btn-sm {% if not status %}btn-info{% else %}btn-outline-secondary{% endif %}">
-          All
-        </a>
-        <a href="{{ url_for('home', status='available') }}" class="btn btn-sm {% if status == 'available' %}btn-success{% else %}btn-outline-success{% endif %}">
-          Available
-        </a>
-        <a href="{{ url_for('scrape_view') }}" class="btn btn-sm btn-outline-warning">
-          <i class="bi bi-arrow-repeat"></i> Scrape New
-        </a>
-      </div>
-    </div>
-
-    <!-- MWLBD Category Quick Bar -->
-    <div class="d-flex flex-wrap gap-2 mb-3">
-      {% for cat in categories %}
-      <a
-        href="{{ url_for('home', genre=cat.genre) }}"
-        class="badge px-3 py-2 text-decoration-none {% if genre == cat.genre %}bg-info text-dark fw-bold{% else %}bg-secondary text-light border border-secondary{% endif %}"
-      >
-        {{ cat.label }}
-      </a>
-      {% endfor %}
-      {% if genre or query or status %}
-      <a href="{{ url_for('home') }}" class="badge bg-danger text-light px-3 py-2 text-decoration-none">
-        <i class="bi bi-x-circle me-1"></i> Reset Filters
-      </a>
+<!-- ==========================================================================
+     CINEMATIC BILLBOARD / HERO SECTION (NETFLIX STYLE)
+     ========================================================================== -->
+{% if featured_movie %}
+<section class="netflix-hero" style="background-image: url('{{ featured_movie.poster }}');">
+  <div class="netflix-hero-overlay"></div>
+  <div class="netflix-hero-content">
+    <!-- Meta details line -->
+    <div class="netflix-hero-meta">
+      <span class="netflix-age-badge">13+</span>
+      <span class="netflix-rating"><i class="bi bi-star-fill me-1"></i>7.8</span>
+      <span>•</span>
+      <span>2026</span>
+      <span>•</span>
+      <span>4K ULTRA HD</span>
+      {% if 'season' in featured_movie.title.lower() or 'series' in featured_movie.genre.lower() %}
+      <span>•</span>
+      <span>Season 1</span>
       {% endif %}
     </div>
 
-    <!-- Genre Pills -->
-    {% if all_genres %}
-    <div class="d-flex flex-wrap gap-1 mt-2 pt-2 border-top border-secondary-subtle">
-      <span class="text-muted small me-2 align-self-center">All Genres:</span>
-      {% for g in all_genres %}
-      <a
-        href="{{ url_for('home', genre=g) }}"
-        class="badge text-decoration-none {% if genre == g %}bg-info text-dark{% else %}bg-secondary-subtle text-light border border-secondary{% endif %}"
-      >
-        {{ g }}
+    <!-- Spaced Cinematic Title -->
+    <h1 class="netflix-hero-title">
+      {{ featured_movie.title }}
+    </h1>
+
+    <!-- Synopsis -->
+    <p class="netflix-hero-desc">
+      {{ featured_movie.description or 'A brand new 2026 cinematic release scraped directly from MWLBD with high-definition Google Drive streams and instant cloud downloads.' }}
+    </p>
+
+    <!-- Action Buttons -->
+    <div class="netflix-hero-actions">
+      {% if featured_movie.download_links and featured_movie.download_links|length > 0 %}
+      <a href="{{ featured_movie.download_links[0].url }}" target="_blank" rel="noopener noreferrer" class="btn-netflix-watch">
+        <i class="bi bi-play-fill fs-5"></i> DOWNLOAD DIRECT
+      </a>
+      {% else %}
+      <a href="{{ url_for('movie_detail', movie_id=featured_movie.id) }}" class="btn-netflix-watch">
+        <i class="bi bi-play-fill fs-5"></i> WATCH / DOWNLOAD
+      </a>
+      {% endif %}
+
+      <a href="{{ url_for('movie_detail', movie_id=featured_movie.id) }}" class="btn-netflix-secondary">
+        <i class="bi bi-info-circle fs-5"></i> MORE INFO
+      </a>
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- ==========================================================================
+     SUB-NAV TABS & GENRE PILLS (MATCHING REFERENCE IMAGE)
+     ========================================================================== -->
+<div class="netflix-subnav-section">
+  <!-- Horizontal Sub-Tabs -->
+  <div class="netflix-tabs">
+    <a href="{{ url_for('home') }}" class="netflix-tab {% if not genre or genre == 'All' %}active{% endif %}">Trending Now</a>
+    <a href="{{ url_for('home', genre='Bollywood') }}" class="netflix-tab {% if genre == 'Bollywood' %}active{% endif %}">Popular</a>
+    <a href="{{ url_for('home', genre='Series') }}" class="netflix-tab {% if genre == 'Series' %}active{% endif %}">Netflix Original</a>
+    <a href="{{ url_for('home', status='available') }}" class="netflix-tab {% if status == 'available' %}active{% endif %}">Premiers</a>
+    <a href="{{ url_for('home') }}" class="netflix-tab">Recently Added</a>
+  </div>
+
+  <!-- Genre Pills Filter Row -->
+  <div class="netflix-pills-row">
+    {% for g in netflix_genres %}
+    <a
+      href="{{ url_for('home', genre=g, q=query) }}"
+      class="netflix-pill {% if genre == g or (not genre and g == 'All') %}active{% endif %}"
+    >
+      {{ g }}
+    </a>
+    {% endfor %}
+  </div>
+</div>
+
+
+<!-- ==========================================================================
+     HORIZONTAL MOVIE CAROUSELS (NETFLIX SLIDERS WITH ARROWS)
+     ========================================================================== -->
+
+<!-- Row 1: Trending 2026 Releases -->
+{% if trending_movies %}
+<section class="netflix-row">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">Trending 2026 Releases</h2>
+  </div>
+
+  <div class="netflix-carousel-container">
+    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-trending', -600)">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+
+    <div class="netflix-carousel" id="carousel-trending">
+      {% for m in trending_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">2026</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.5</span>
+            <span>2026</span>
+            <span class="quality">1080p</span>
+          </div>
+        </div>
       </a>
       {% endfor %}
     </div>
-    {% endif %}
+
+    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-trending', 600)">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- Row 2: Popular in Bollywood 2026 -->
+{% if bollywood_movies %}
+<section class="netflix-row">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">Bollywood Hindi 2026</h2>
   </div>
 
-  <!-- Movie Grid -->
-  {% if movies %}
-  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-5 g-4" id="movieGrid">
-    {% for movie in movies %}
-    <div
-      class="col movie-grid-item"
-      data-title="{{ movie.title|lower }}"
-      data-genre="{{ movie.genre|lower }}"
-      data-year="{{ movie.year }}"
-    >
-      <div class="movie-card">
-        <!-- Poster Container -->
-        <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="card-poster-container text-decoration-none">
-          {% if movie.poster %}
-          <img src="{{ movie.poster }}" alt="{{ movie.title }} Poster" class="card-poster" loading="lazy" onerror="this.onerror=null; this.src='https://placehold.co/300x450/151d30/ffffff?text={{ movie.title|urlencode }}';">
-          {% else %}
-          <div class="d-flex align-items-center justify-content-center h-100 bg-secondary text-light">
-            <i class="bi bi-film fs-1"></i>
-          </div>
-          {% endif %}
+  <div class="netflix-carousel-container">
+    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-bollywood', -600)">
+      <i class="bi bi-chevron-left"></i>
+    </button>
 
-          {% if movie.year %}
-          <span class="badge-year">{{ movie.year }}</span>
-          {% endif %}
-        </a>
-
-        <!-- Card Body -->
-        <div class="card-body p-3 d-flex flex-column justify-content-between flex-grow-1">
-          <div>
-            <div class="d-flex justify-content-between align-items-center mb-1">
-              <span class="badge {% if movie.status == 'available' %}badge-status-available{% else %}badge-status-pending{% endif %} text-uppercase small" style="font-size: 0.68rem;">
-                {{ movie.status }}
-              </span>
-              <small class="text-muted text-truncate ms-1" style="max-width: 100px;">
-                {{ movie.genre.split(',')[0] if movie.genre else 'Cinema' }}
-              </small>
-            </div>
-
-            <h6 class="card-title text-white fw-bold mb-2 text-truncate" title="{{ movie.title }}">
-              <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="text-light text-decoration-none">
-                {{ movie.title }}
-              </a>
-            </h6>
-          </div>
-
-          <!-- Direct Download Action -->
-          <div class="mt-2 pt-2 border-top border-secondary-subtle">
-            {% if movie.download_links and movie.download_links|length > 0 %}
-            <a
-              href="{{ movie.download_links[0].url }}"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="btn btn-sm btn-gdrive-direct w-100"
-              title="Direct Download from Google Drive"
-            >
-              <i class="bi bi-cloud-arrow-down-fill"></i> G-Drive Direct
-            </a>
-            {% else %}
-            <a href="{{ url_for('movie_detail', movie_id=movie.id) }}" class="btn btn-sm btn-outline-secondary w-100">
-              <i class="bi bi-eye"></i> View Details
-            </a>
-            {% endif %}
+    <div class="netflix-carousel" id="carousel-bollywood">
+      {% for m in bollywood_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">Hindi</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.8</span>
+            <span>2026</span>
+            <span class="quality">HD</span>
           </div>
         </div>
-      </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-bollywood', 600)">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- Row 3: Dual Audio & Multi-Language 2026 -->
+{% if dual_audio_movies %}
+<section class="netflix-row">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">Dual Audio & Multi-Audio 2026</h2>
+  </div>
+
+  <div class="netflix-carousel-container">
+    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-dualaudio', -600)">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+
+    <div class="netflix-carousel" id="carousel-dualaudio">
+      {% for m in dual_audio_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">Dual</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>8.1</span>
+            <span>2026</span>
+            <span class="quality">GDrive</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-dualaudio', 600)">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- Row 4: TV & Web Series 2026 -->
+{% if series_movies %}
+<section class="netflix-row">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">TV Shows & Web Series 2026</h2>
+  </div>
+
+  <div class="netflix-carousel-container">
+    <button class="netflix-arrow prev" onclick="scrollCarousel('carousel-series', -600)">
+      <i class="bi bi-chevron-left"></i>
+    </button>
+
+    <div class="netflix-carousel" id="carousel-series">
+      {% for m in series_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">Series</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>8.4</span>
+            <span>2026</span>
+            <span class="quality">Season 1</span>
+          </div>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+
+    <button class="netflix-arrow next" onclick="scrollCarousel('carousel-series', 600)">
+      <i class="bi bi-chevron-right"></i>
+    </button>
+  </div>
+</section>
+{% endif %}
+
+
+<!-- ==========================================================================
+     FULL CATALOG GRID (PAGINATED WITH ZERO CLUTTER)
+     ========================================================================== -->
+<section class="netflix-row mt-4">
+  <div class="netflix-row-header">
+    <h2 class="netflix-row-title">
+      {% if query %}
+        Search Results for "{{ query }}"
+      {% elif genre and genre != 'All' %}
+        {{ genre }} 2026 Movies
+      {% else %}
+        All 2026 Releases
+      {% endif %}
+    </h2>
+  </div>
+
+  {% if movies %}
+  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-3" id="movieGrid">
+    {% for m in movies %}
+    <div class="col">
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card h-100">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="netflix-card-badge">{{ m.year or '2026' }}</span>
+        </div>
+        <div class="netflix-card-info">
+          <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
+          <div class="netflix-card-meta">
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.6</span>
+            <span>2026</span>
+            <span class="quality">Direct</span>
+          </div>
+        </div>
+      </a>
     </div>
     {% endfor %}
   </div>
 
-  <!-- Server-Side Pagination Bar -->
+  <!-- Minimalist Netflix Pagination -->
   {% if pagination and pagination.total_pages > 1 %}
-  <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-3 mt-5 pt-3 border-top border-secondary">
-    <div class="text-muted small">
-      Showing page <span class="text-white fw-bold">{{ pagination.current_page }}</span> of <span class="text-white fw-bold">{{ pagination.total_pages }}</span> ({{ pagination.total_items }} movies total)
-    </div>
+  <div class="netflix-pagination">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('home', page=pagination.prev_page, q=query, genre=genre) }}" class="netflix-page-btn">
+      <i class="bi bi-chevron-left me-1"></i> Prev
+    </a>
+    {% endif %}
 
-    <nav aria-label="Page navigation">
-      <ul class="pagination pagination-sm mb-0">
-        <!-- First & Previous -->
-        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=1, q=query, genre=genre, status=status) }}">
-            <i class="bi bi-chevron-double-left"></i>
-          </a>
-        </li>
-        <li class="page-item {% if not pagination.has_prev %}disabled{% endif %}">
-          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=pagination.prev_page or 1, q=query, genre=genre, status=status) }}">
-            Prev
-          </a>
-        </li>
+    {% set start_page = [1, pagination.current_page - 2] | max %}
+    {% set end_page = [pagination.total_pages, start_page + 4] | min %}
+    {% set start_page = [1, end_page - 4] | max %}
 
-        <!-- Numbered sliding window around current page -->
-        {% set start_page = [1, pagination.current_page - 2] | max %}
-        {% set end_page = [pagination.total_pages, start_page + 4] | min %}
-        {% set start_page = [1, end_page - 4] | max %}
+    {% for p in range(start_page, end_page + 1) %}
+    <a
+      href="{{ url_for('home', page=p, q=query, genre=genre) }}"
+      class="netflix-page-btn {% if p == pagination.current_page %}active{% endif %}"
+    >
+      {{ p }}
+    </a>
+    {% endfor %}
 
-        {% for p in range(start_page, end_page + 1) %}
-        <li class="page-item {% if p == pagination.current_page %}active{% endif %}">
-          <a
-            class="page-link {% if p == pagination.current_page %}bg-info text-dark border-info fw-bold{% else %}bg-dark border-secondary text-light{% endif %}"
-            href="{{ url_for('home', page=p, q=query, genre=genre, status=status) }}"
-          >
-            {{ p }}
-          </a>
-        </li>
-        {% endfor %}
-
-        <!-- Next & Last -->
-        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=pagination.next_page or pagination.total_pages, q=query, genre=genre, status=status) }}">
-            Next
-          </a>
-        </li>
-        <li class="page-item {% if not pagination.has_next %}disabled{% endif %}">
-          <a class="page-link bg-dark border-secondary text-light" href="{{ url_for('home', page=pagination.total_pages, q=query, genre=genre, status=status) }}">
-            <i class="bi bi-chevron-double-right"></i>
-          </a>
-        </li>
-      </ul>
-    </nav>
+    {% if pagination.has_next %}
+    <a href="{{ url_for('home', page=pagination.next_page, q=query, genre=genre) }}" class="netflix-page-btn">
+      Next <i class="bi bi-chevron-right ms-1"></i>
+    </a>
+    {% endif %}
   </div>
   {% endif %}
-
-  <!-- Empty Search Result Helper -->
-  <div id="noMoviesFound" class="card bg-dark border-secondary p-5 text-center mt-4" style="display: none;">
-    <i class="bi bi-search display-4 text-muted mb-3"></i>
-    <h4 class="text-light">No matching movies found</h4>
-    <p class="text-muted">Try adjusting your search terms or filter criteria.</p>
-  </div>
 
   {% else %}
-  <!-- Empty Database Placeholder -->
-  <div class="card bg-dark border-secondary p-5 text-center my-4 shadow">
-    <i class="bi bi-film display-2 text-muted mb-3"></i>
-    <h3 class="text-white">No Movies in Database Yet</h3>
-    <p class="text-muted col-md-6 mx-auto">
-      The database is currently empty. Run a quick scrape to import the latest movies and direct Google Drive download links from MWLBD.
-    </p>
-    <div>
-      <a href="{{ url_for('scrape_view') }}" class="btn btn-neon-purple px-4 py-2">
-        <i class="bi bi-cloud-download me-1"></i> Open Scraper Dashboard
-      </a>
-    </div>
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-search fs-1 d-block mb-3 text-secondary"></i>
+    <h4 class="text-white">No movies found</h4>
+    <p>Try searching for a different title or resetting the genre filters.</p>
+    <a href="{{ url_for('home') }}" class="btn-netflix-watch mt-2">Browse All 2026 Releases</a>
   </div>
   {% endif %}
-</div>
+</section>
 {% endblock %}

@@ -3,110 +3,135 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}MWLBD Google Drive Direct Cinema{% endblock %}</title>
+  <title>{% block title %}Netflix - Stream & Direct Google Drive Downloader{% endblock %}</title>
   <!-- Bootstrap 5 CSS -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <!-- Bootstrap Icons -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-  <!-- Custom Stylesheet -->
+  <!-- Netflix UI Custom Stylesheet -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
   {% block head %}{% endblock %}
 </head>
 <body>
-  <!-- Navigation Bar -->
-  <nav class="navbar navbar-expand-lg navbar-dark navbar-custom sticky-top">
-    <div class="container">
-      <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('home') }}">
-        <i class="bi bi-google-play fs-3 text-info"></i>
-        <span class="brand-glow fs-4">MWLBD <span class="badge bg-danger ms-1 fs-6">2026+ CINEMA</span></span>
-      </a>
+  <!-- Netflix Sticky Navigation Bar -->
+  <header class="netflix-navbar d-flex align-items-center" id="netflixNavbar">
+    <!-- Brand Logo -->
+    <a href="{{ url_for('home') }}" class="netflix-brand">
+      NETFLIX
+    </a>
 
-      <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarMain">
-        <span class="navbar-toggler-icon"></span>
+    <!-- Main Navigation Links -->
+    <nav class="d-none d-md-block">
+      <ul class="netflix-nav-links">
+        <li>
+          <a href="{{ url_for('home') }}" class="netflix-nav-link {% if not genre or genre == 'All' %}active{% endif %}">
+            Home
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('home', genre='Series') }}" class="netflix-nav-link {% if genre == 'Series' %}active{% endif %}">
+            TV Shows
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('home') }}" class="netflix-nav-link">
+            Movies
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('home', genre='Bollywood') }}" class="netflix-nav-link {% if genre == 'Bollywood' %}active{% endif %}">
+            Bollywood
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('home', genre='Dual Audio') }}" class="netflix-nav-link {% if genre == 'Dual Audio' %}active{% endif %}">
+            Dual Audio
+          </a>
+        </li>
+        <li>
+          <a href="{{ url_for('home', status='available') }}" class="netflix-nav-link">
+            Recently Added
+          </a>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- Right Side Tools (Search, Notifications, Profile) -->
+    <div class="netflix-nav-right">
+      <!-- Search Box -->
+      <form action="{{ url_for('home') }}" method="GET" class="netflix-search-box m-0">
+        <i class="bi bi-search netflix-search-icon"></i>
+        <input
+          type="text"
+          name="q"
+          id="netflixSearchInput"
+          class="netflix-search-input"
+          placeholder="Titles, people, genres"
+          value="{{ query or '' }}"
+          autocomplete="off"
+        >
+      </form>
+
+      <!-- Notification Bell -->
+      <button class="netflix-icon-btn d-none d-sm-block" title="Notifications" type="button">
+        <i class="bi bi-bell"></i>
       </button>
 
-      <div class="collapse navbar-collapse" id="navbarMain">
-        <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-3">
-          <li class="nav-item">
-            <a class="nav-link text-light" href="{{ url_for('home') }}">
-              <i class="bi bi-film me-1"></i> 2026 Movies
-            </a>
-          </li>
-          <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle text-light" href="#" id="categoriesDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-              <i class="bi bi-grid me-1"></i> Categories
-            </a>
-            <ul class="dropdown-menu dropdown-menu-dark border-secondary shadow" aria-labelledby="categoriesDropdown">
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Bollywood') }}"><i class="bi bi-tag text-info me-2"></i>Bollywood Hindi</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Hollywood') }}"><i class="bi bi-tag text-info me-2"></i>Hollywood English</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Dual Audio') }}"><i class="bi bi-tag text-info me-2"></i>Dual Audio</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Hindi Dubbed') }}"><i class="bi bi-tag text-info me-2"></i>Hindi Dubbed</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Tamil') }}"><i class="bi bi-tag text-info me-2"></i>South Indian (Tamil/Telugu)</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Series') }}"><i class="bi bi-tv text-warning me-2"></i>TV & Web Series</a></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='Anime') }}"><i class="bi bi-stars text-danger me-2"></i>Anime & Cartoon</a></li>
-              <li><hr class="dropdown-divider border-secondary"></li>
-              <li><a class="dropdown-item" href="{{ url_for('home', genre='1080p') }}"><i class="bi bi-badge-hd text-success me-2"></i>4K UHD & 1080p Full HD</a></li>
-            </ul>
-          </li>
-          <li class="nav-item">
-            <a class="nav-link text-light" href="{{ url_for('scrape_view') }}">
-              <i class="bi bi-robot me-1"></i> Scraper & Crawler
-            </a>
-          </li>
+      <!-- User Avatar / Profile Dropdown -->
+      <div class="dropdown">
+        <img
+          src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png"
+          alt="User Profile"
+          class="netflix-avatar"
+          id="profileDropdown"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+          onerror="this.onerror=null; this.src='https://placehold.co/32x32/e50914/ffffff?text=N';"
+        >
+        <ul class="dropdown-menu dropdown-menu-dark dropdown-menu-end border-secondary shadow" aria-labelledby="profileDropdown">
+          <li><h6 class="dropdown-header text-muted small">2026 Direct Downloader</h6></li>
+          <li><a class="dropdown-item" href="{{ url_for('home') }}"><i class="bi bi-film me-2 text-danger"></i>Browse Movies</a></li>
+          <li><a class="dropdown-item" href="{{ url_for('home', status='available') }}"><i class="bi bi-check-circle me-2 text-success"></i>Direct Downloads</a></li>
+          <li><hr class="dropdown-divider border-secondary"></li>
+          <li><a class="dropdown-item text-muted small" href="{{ url_for('scrape_view') }}"><i class="bi bi-gear me-2"></i>Crawler Settings</a></li>
         </ul>
-
-        <div class="d-flex align-items-center gap-3">
-          <span class="badge bg-dark border border-secondary text-info d-none d-md-inline-block px-3 py-2">
-            <i class="bi bi-hdd-network me-1"></i> 0 Server Storage (Direct CDN)
-          </span>
-          <a href="{{ url_for('scrape_view') }}" class="btn btn-sm btn-neon-purple">
-            <i class="bi bi-cloud-arrow-down me-1"></i> Trigger Scrape
-          </a>
-        </div>
       </div>
     </div>
-  </nav>
-
-  <!-- Error or Message Banner -->
-  {% if error_title %}
-  <div class="container mt-5">
-    <div class="card bg-dark border-danger text-light p-4 text-center my-5 shadow">
-      <div class="card-body">
-        <i class="bi bi-exclamation-octagon text-danger display-3 mb-3"></i>
-        <h2 class="card-title text-danger">{{ error_title }}</h2>
-        <p class="card-text text-muted fs-5">{{ error_message }}</p>
-        <a href="{{ url_for('home') }}" class="btn btn-outline-light mt-3">
-          <i class="bi bi-house-door me-1"></i> Return Home
-        </a>
-      </div>
-    </div>
-  </div>
-  {% endif %}
+  </header>
 
   <!-- Main Content Block -->
   <main class="flex-grow-1">
     {% block content %}{% endblock %}
   </main>
 
-  <!-- Footer -->
-  <footer class="py-4 text-center text-muted">
-    <div class="container">
-      <div class="row align-items-center gy-2">
-        <div class="col-md-6 text-md-start">
-          <span class="text-light fw-bold">MWLBD Stream & Direct GDrive</span> &copy; 2026. Zero server storage cost.
-        </div>
-        <div class="col-md-6 text-md-end">
-          <span class="badge bg-secondary-subtle text-secondary me-2">Flask 2.3</span>
-          <span class="badge bg-info-subtle text-info me-2">JSON DB</span>
-          <span class="badge bg-success-subtle text-success">Render Ready</span>
-        </div>
+  <!-- Authentic Minimalist Netflix Footer -->
+  <footer class="netflix-footer">
+    <div class="container-fluid px-0">
+      <div class="text-muted small mb-3">Questions? Call 1-800-012-3456 (2026 Direct Cinema)</div>
+      <div class="netflix-footer-links">
+        <div><a href="{{ url_for('home') }}">FAQ</a></div>
+        <div><a href="{{ url_for('home') }}">Help Center</a></div>
+        <div><a href="{{ url_for('home') }}">Account</a></div>
+        <div><a href="{{ url_for('home') }}">Media Center</a></div>
+        <div><a href="{{ url_for('home') }}">Investor Relations</a></div>
+        <div><a href="{{ url_for('home') }}">Jobs</a></div>
+        <div><a href="{{ url_for('home') }}">Ways to Watch</a></div>
+        <div><a href="{{ url_for('home') }}">Terms of Use</a></div>
+        <div><a href="{{ url_for('home') }}">Privacy</a></div>
+        <div><a href="{{ url_for('home') }}">Cookie Preferences</a></div>
+        <div><a href="{{ url_for('home') }}">Corporate Information</a></div>
+        <div><a href="{{ url_for('scrape_view') }}">Crawler Dashboard</a></div>
+      </div>
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 text-muted small">
+        <span>&copy; 2026 Netflix Cinema Direct Downloader. High-speed Google Drive CDN.</span>
+        <span>MVP Edition</span>
       </div>
     </div>
   </footer>
 
   <!-- Bootstrap 5 JS Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <!-- Custom JS -->
+  <!-- Netflix UI JS -->
   <script src="{{ url_for('static', filename='js/main.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>

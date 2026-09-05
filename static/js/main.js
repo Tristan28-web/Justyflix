@@ -1,35 +1,32 @@
-document.addEventListener('DOMContentLoaded', () => {
-  // 1. Real-time Search Filtering
-  const searchInput = document.getElementById('movieSearchInput');
-  const movieCards = document.querySelectorAll('.movie-grid-item');
-  const emptyState = document.getElementById('noMoviesFound');
-
-  if (searchInput && movieCards.length > 0) {
-    searchInput.addEventListener('input', (e) => {
-      const term = e.target.value.toLowerCase().trim();
-      let visibleCount = 0;
-
-      movieCards.forEach((card) => {
-        const title = card.getAttribute('data-title') || '';
-        const genre = card.getAttribute('data-genre') || '';
-        const year = card.getAttribute('data-year') || '';
-
-        const match = title.includes(term) || genre.includes(term) || year.includes(term);
-        if (match) {
-          card.style.display = '';
-          visibleCount++;
-        } else {
-          card.style.display = 'none';
-        }
-      });
-
-      if (emptyState) {
-        emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
-      }
+// ==========================================================================
+// Netflix Carousel Horizontal Scrolling Function
+// ==========================================================================
+window.scrollCarousel = function(carouselId, distance) {
+  const carousel = document.getElementById(carouselId);
+  if (carousel) {
+    carousel.scrollBy({
+      left: distance,
+      behavior: 'smooth'
     });
   }
+};
 
-  // 2. Clipboard Copy Helper
+document.addEventListener('DOMContentLoaded', () => {
+  // 1. Netflix Navbar Scroll Transparency Effect
+  const navbar = document.getElementById('netflixNavbar');
+  if (navbar) {
+    const handleScroll = () => {
+      if (window.scrollY > 40) {
+        navbar.classList.add('scrolled');
+      } else {
+        navbar.classList.remove('scrolled');
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll(); // Initial check
+  }
+
+  // 2. Clipboard Copy Helper for Direct Download Links
   const copyButtons = document.querySelectorAll('.btn-copy-link');
   copyButtons.forEach((btn) => {
     btn.addEventListener('click', async () => {
@@ -39,14 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         await navigator.clipboard.writeText(textToCopy);
         const originalHtml = btn.innerHTML;
-        btn.innerHTML = '<i class="bi bi-check-lg"></i> Copied!';
-        btn.classList.add('btn-success');
-        btn.classList.remove('btn-outline-info', 'btn-outline-secondary');
+        btn.innerHTML = '<i class="bi bi-check-lg text-success"></i> Copied!';
 
         setTimeout(() => {
           btn.innerHTML = originalHtml;
-          btn.classList.remove('btn-success');
-          btn.classList.add('btn-outline-info');
         }, 2000);
       } catch (err) {
         console.error('Copy failed:', err);
@@ -54,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 3. Multi-Page Deep Crawl Trigger & Poller
+  // 3. Crawler Control Poller (for /scrape admin view)
   const startCrawlBtn = document.getElementById('btnStartDeepCrawl');
   const progressArea = document.getElementById('crawlerProgressArea');
   const statusText = document.getElementById('crawlerStatusText');
@@ -84,7 +77,7 @@ document.addEventListener('DOMContentLoaded', () => {
           progressBar.classList.remove('progress-bar-animated');
           progressBar.classList.add('bg-success');
         }
-        setTimeout(() => window.location.reload(), 2500);
+        setTimeout(() => window.location.reload(), 2000);
       }
     } catch (e) {
       console.error('Error polling crawler status:', e);
@@ -103,16 +96,16 @@ document.addEventListener('DOMContentLoaded', () => {
       `;
 
       if (progressArea) progressArea.style.display = 'block';
-      if (statusText) statusText.textContent = `Initiating crawl for ${numPages} page(s) starting from page ${startPage}...`;
+      if (statusText) statusText.textContent = `Initiating crawl for ${numPages} page(s)...`;
 
       try {
         const resp = await fetch(`/api/crawl?start_page=${startPage}&num_pages=${numPages}&concurrency=4`, {
           method: 'POST'
         });
-        const result = await resp.json();
+        await resp.json();
 
         if (pollInterval) clearInterval(pollInterval);
-        pollInterval = setInterval(pollCrawlerStatus, 2500);
+        pollInterval = setInterval(pollCrawlerStatus, 2000);
       } catch (err) {
         alert('Failed to start crawler: ' + err.message);
         startCrawlBtn.disabled = false;

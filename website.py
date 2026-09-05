@@ -151,10 +151,17 @@ MWLBD_CATEGORIES = [
 ]
 
 
+# Netflix UI Navigation & Genre Pills
+NETFLIX_GENRES = [
+    "All", "Action", "Adventure", "Anime", "Bollywood", "Comedy", "Crime",
+    "Documentary", "Drama", "Dual Audio", "Horror", "Sci-Fi", "Thriller"
+]
+
+
 # Web Routes
 @app.route('/')
 def home():
-    """Home page displaying movie grid with server-side pagination, search, and filters."""
+    """Home page displaying Netflix-style cinematic hero, category carousels, and movie grid."""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 30, type=int)
     query = request.args.get('q', '').strip()
@@ -166,18 +173,34 @@ def home():
         per_page=per_page,
         status=status or None,
         query=query or None,
-        genre=genre or None
+        genre=genre if genre and genre != "All" else None
     )
     stats = db.get_stats()
-
-    # Extract all distinct genres from database for filter pills
     all_movies = db.get_all_movies()
-    genre_set = set()
-    for m in all_movies:
-        for g in m.get('genre', '').split(','):
-            clean_g = g.strip()
-            if clean_g and len(clean_g) > 2:
-                genre_set.add(clean_g)
+
+    # Pick top featured movie for Netflix Billboard Hero
+    featured_movie = None
+    for candidate in all_movies:
+        if candidate.get("poster") and len(candidate.get("description", "")) > 15:
+            featured_movie = candidate
+            break
+    if not featured_movie and all_movies:
+        featured_movie = all_movies[0]
+
+    # Curate Netflix Content Rows for homepage
+    trending_movies = all_movies[:18]
+    bollywood_movies = [
+        m for m in all_movies
+        if 'bollywood' in m.get('genre', '').lower() or 'hindi' in m.get('title', '').lower()
+    ][:18]
+    dual_audio_movies = [
+        m for m in all_movies
+        if 'dual' in m.get('genre', '').lower() or 'dual audio' in m.get('title', '').lower()
+    ][:18]
+    series_movies = [
+        m for m in all_movies
+        if 'series' in m.get('genre', '').lower() or 'season' in m.get('title', '').lower()
+    ][:18]
 
     return render_template(
         'index.html',
@@ -186,9 +209,14 @@ def home():
         stats=stats,
         query=query,
         status=status,
-        genre=genre,
-        categories=MWLBD_CATEGORIES,
-        all_genres=sorted(list(genre_set))[:15]
+        genre=genre or "All",
+        featured_movie=featured_movie,
+        trending_movies=trending_movies,
+        bollywood_movies=bollywood_movies,
+        dual_audio_movies=dual_audio_movies,
+        series_movies=series_movies,
+        netflix_genres=NETFLIX_GENRES,
+        categories=MWLBD_CATEGORIES
     )
 
 

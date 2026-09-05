@@ -101,10 +101,12 @@
 </div>
 
 
+{% if not is_filtered %}
+
 <!-- ==========================================================================
-     SECTION 1: FEATURED CAROUSEL (IMAGE 1 SAMPLE MATCH)
+     HOMEPAGE SECTION 1: FEATURED CAROUSEL (IMAGE 1 SAMPLE MATCH)
      ========================================================================== -->
-{% if not is_filtered and featured_carousel_movies %}
+{% if featured_carousel_movies %}
 <section class="netflix-row featured-section">
   <div class="section-header-row">
     <div class="section-title-wrap">
@@ -155,53 +157,32 @@
 
 
 <!-- ==========================================================================
-     SECTION 2: LATEST MOVIES (IMAGE 2 SAMPLE MATCH)
+     HOMEPAGE SECTION 2: LATEST MOVIES CAROUSEL
      ========================================================================== -->
+{% if latest_carousel_movies %}
 <section class="netflix-row latest-movies-section mt-4">
   <div class="section-header-row">
     <div class="section-title-wrap">
       <span class="section-accent-bar"></span>
-      <h2 class="section-title-text">
-        {% if query %}
-          Search Results: "{{ query }}" ({{ pagination.total }})
-        {% elif genre and genre != 'All' %}
-          {% if genre == 'Series' %}
-            TV Shows & Web Series ({{ pagination.total }})
-          {% else %}
-            {{ genre }} Movies ({{ pagination.total }})
-          {% endif %}
-        {% elif nav == 'hollywood' %}
-          Hollywood English ({{ pagination.total }})
-        {% elif nav == 'bollywood' %}
-          Bollywood Hindi ({{ pagination.total }})
-        {% elif nav == 'tv_shows' %}
-          TV Shows & Series ({{ pagination.total }})
-        {% elif nav == 'dual_audio' %}
-          Dual Audio Movies ({{ pagination.total }})
-        {% elif nav == 'downloads' or status == 'available' %}
-          Available Movies ({{ pagination.total }})
-        {% else %}
-          Latest Movies
-        {% endif %}
-      </h2>
+      <h2 class="section-title-text">Latest Movies</h2>
     </div>
-
-    <div>
-      {% if is_filtered %}
-      <a href="{{ url_for('home') }}" class="btn-see-all-red">
-        <i class="bi bi-x-circle me-1"></i> CLEAR FILTER
-      </a>
-      {% else %}
-      <a href="{{ url_for('home', genre='All') }}" class="btn-see-all-red">SEE ALL</a>
-      {% endif %}
+    <div class="d-flex align-items-center gap-2">
+      <div class="featured-arrows-wrap">
+        <button class="featured-arrow-btn" onclick="scrollCarousel('carousel-latest', -500)" aria-label="Previous Movies" type="button">
+          <i class="bi bi-caret-left-fill"></i>
+        </button>
+        <button class="featured-arrow-btn" onclick="scrollCarousel('carousel-latest', 500)" aria-label="Next Movies" type="button">
+          <i class="bi bi-caret-right-fill"></i>
+        </button>
+      </div>
+      <a href="{{ url_for('home', view='latest_movies') }}" class="btn-see-all-red">SEE ALL</a>
     </div>
   </div>
 
-  {% if movies %}
-  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2 g-sm-3" id="movieGrid">
-    {% for m in movies %}
-    <div class="col">
-      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card h-100">
+  <div class="netflix-carousel-container">
+    <div class="netflix-carousel" id="carousel-latest">
+      {% for m in latest_carousel_movies %}
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card">
         <div class="netflix-poster-box">
           <img
             src="{{ m.poster }}"
@@ -210,9 +191,9 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
-          <!-- Quality / Audio Tag Badge (Image 2) -->
+          <!-- Quality Tag Badge -->
           <span class="badge-quality-tag">{{ m.quality_tag }}</span>
-          <!-- Corner Star Rating (Image 2) -->
+          <!-- Star Rating -->
           <span class="badge-corner-rating">
             <i class="bi bi-star-fill"></i>
             {{ m.rating or '8.5' }}
@@ -223,55 +204,17 @@
         </div>
         <div class="sample-card-subtext">{{ m.formatted_date }}</div>
       </a>
+      {% endfor %}
     </div>
-    {% endfor %}
   </div>
-
-  <!-- Minimalist Netflix Pagination -->
-  {% if pagination and pagination.total_pages > 1 %}
-  <div class="netflix-pagination">
-    {% if pagination.has_prev %}
-    <a href="{{ url_for('home', page=pagination.prev_page, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None)) }}" class="netflix-page-btn">
-      <i class="bi bi-chevron-left me-1"></i> Prev
-    </a>
-    {% endif %}
-
-    {% set start_page = [1, pagination.current_page - 2] | max %}
-    {% set end_page = [pagination.total_pages, start_page + 4] | min %}
-    {% set start_page = [1, end_page - 4] | max %}
-
-    {% for p in range(start_page, end_page + 1) %}
-    <a
-      href="{{ url_for('home', page=p, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None)) }}"
-      class="netflix-page-btn {% if p == pagination.current_page %}active{% endif %}"
-    >
-      {{ p }}
-    </a>
-    {% endfor %}
-
-    {% if pagination.has_next %}
-    <a href="{{ url_for('home', page=pagination.next_page, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None)) }}" class="netflix-page-btn">
-      Next <i class="bi bi-chevron-right ms-1"></i>
-    </a>
-    {% endif %}
-  </div>
-  {% endif %}
-
-  {% else %}
-  <div class="text-center py-5 text-muted">
-    <i class="bi bi-search fs-1 d-block mb-3 text-secondary"></i>
-    <h4 class="text-white">No movies found</h4>
-    <p>Try searching for a different title or resetting the genre filters.</p>
-    <a href="{{ url_for('home') }}" class="btn-netflix-watch mt-2">Browse All 2026 Releases</a>
-  </div>
-  {% endif %}
 </section>
+{% endif %}
 
 
 <!-- ==========================================================================
-     SECTION 3: TV & WEB SERIES (AFTER LATEST MOVIES)
+     HOMEPAGE SECTION 3: TV & WEB SERIES CAROUSEL (AFTER LATEST MOVIES)
      ========================================================================== -->
-{% if not is_filtered and series_movies %}
+{% if series_movies %}
 <section class="netflix-row series-section mt-4 mb-5">
   <div class="section-header-row">
     <div class="section-title-wrap">
@@ -320,6 +263,114 @@
       {% endfor %}
     </div>
   </div>
+</section>
+{% endif %}
+
+{% else %}
+
+<!-- ==========================================================================
+     DEDICATED FULL CATALOG GRID (ONCE "SEE ALL" OR CATEGORY IS CLICKED)
+     ========================================================================== -->
+<section class="netflix-row latest-movies-section mt-4">
+  <div class="section-header-row">
+    <div class="section-title-wrap">
+      <span class="section-accent-bar"></span>
+      <h2 class="section-title-text">
+        {% if query %}
+          Search Results: "{{ query }}" ({{ pagination.total }})
+        {% elif genre == 'Series' or nav == 'tv_shows' %}
+          TV & WEB Series ({{ pagination.total }})
+        {% elif genre and genre != 'All' %}
+          {{ genre }} Movies ({{ pagination.total }})
+        {% elif nav == 'hollywood' %}
+          Hollywood English ({{ pagination.total }})
+        {% elif nav == 'bollywood' %}
+          Bollywood Hindi ({{ pagination.total }})
+        {% elif nav == 'dual_audio' %}
+          Dual Audio Movies ({{ pagination.total }})
+        {% elif nav == 'downloads' or status == 'available' %}
+          Available Movies ({{ pagination.total }})
+        {% elif view == 'latest_movies' %}
+          Latest Movies ({{ pagination.total }})
+        {% else %}
+          Latest Movies ({{ pagination.total }})
+        {% endif %}
+      </h2>
+    </div>
+
+    <div>
+      <a href="{{ url_for('home') }}" class="btn-see-all-red">
+        <i class="bi bi-arrow-left me-1"></i> HOME
+      </a>
+    </div>
+  </div>
+
+  {% if movies %}
+  <div class="row row-cols-2 row-cols-sm-3 row-cols-md-4 row-cols-lg-6 g-2 g-sm-3" id="movieGrid">
+    {% for m in movies %}
+    <div class="col">
+      <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="netflix-card h-100">
+        <div class="netflix-poster-box">
+          <img
+            src="{{ m.poster }}"
+            alt="{{ m.title }}"
+            class="netflix-poster-img"
+            loading="lazy"
+            onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
+          >
+          <span class="badge-quality-tag">{{ m.quality_tag }}</span>
+          <span class="badge-corner-rating">
+            <i class="bi bi-star-fill"></i>
+            {{ m.rating or '8.5' }}
+          </span>
+        </div>
+        <div class="sample-card-title-line">
+          <span class="sample-card-title-text" title="{{ m.title }}">{{ m.title }}</span>
+        </div>
+        <div class="sample-card-subtext">{{ m.formatted_date }}</div>
+      </a>
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Image 2 Match: Red-Active Square Pagination Bar Below Dedicated Grid -->
+  {% if pagination and pagination.total_pages > 1 %}
+  <div class="netflix-pagination">
+    {% if pagination.has_prev %}
+    <a href="{{ url_for('home', page=pagination.prev_page, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None), view=(view or None)) }}" class="netflix-page-btn nav-step">
+      <i class="bi bi-chevron-left me-1"></i> Prev
+    </a>
+    {% endif %}
+
+    {% set start_page = [1, pagination.current_page - 2] | max %}
+    {% set end_page = [pagination.total_pages, start_page + 4] | min %}
+    {% set start_page = [1, end_page - 4] | max %}
+
+    {% for p in range(start_page, end_page + 1) %}
+    <a
+      href="{{ url_for('home', page=p, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None), view=(view or None)) }}"
+      class="netflix-page-btn {% if p == pagination.current_page %}active{% endif %}"
+    >
+      {{ p }}
+    </a>
+    {% endfor %}
+
+    {% if pagination.has_next %}
+    <a href="{{ url_for('home', page=pagination.next_page, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None), view=(view or None)) }}" class="netflix-page-btn nav-step">
+      Next <i class="bi bi-chevron-right ms-1"></i>
+    </a>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="text-center py-5 text-muted">
+    <i class="bi bi-search fs-1 d-block mb-3 text-secondary"></i>
+    <h4 class="text-white">No titles found</h4>
+    <p>Try searching for a different keyword or resetting the genre filter.</p>
+    <a href="{{ url_for('home') }}" class="btn-netflix-watch mt-2">Browse All Releases</a>
+  </div>
+  {% endif %}
 </section>
 {% endif %}
 {% endblock %}

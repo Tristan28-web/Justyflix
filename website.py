@@ -184,6 +184,7 @@ def home():
     status = request.args.get('status', '').strip()
     genre = request.args.get('genre', '').strip()
     nav = request.args.get('nav', '').strip()
+    view = request.args.get('view', '').strip()
 
     if not nav:
         if status == 'available':
@@ -288,13 +289,16 @@ def home():
     # Curate Featured Carousel Movies (20 titles with poster)
     featured_carousel_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:20]
 
+    # Curate Latest Movies Carousel Movies (20 titles with poster)
+    latest_carousel_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:20]
+
     # Curate TV & WEB Series Carousel Movies (series titles with poster)
     series_movies = [enrich_movie(m) for m in db.get_all_movies(genre='Series') if m.get("poster")][:20]
 
     # Enrich paginated items for Latest Movies Grid
     pagination["items"] = [enrich_movie(m) for m in pagination["items"]]
 
-    is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home'))
+    is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home') or (view and view != 'home'))
 
     return render_template(
         'index.html',
@@ -304,12 +308,14 @@ def home():
         query=query,
         status=status,
         nav=nav,
+        view=view,
         genre=genre or "All",
         effective_genre=effective_genre,
         is_filtered=is_filtered,
         featured_movie=featured_movie,
         featured_movies=featured_movies,
         featured_carousel_movies=featured_carousel_movies,
+        latest_carousel_movies=latest_carousel_movies,
         series_movies=series_movies,
         netflix_genres=NETFLIX_GENRES,
         categories=MWLBD_CATEGORIES

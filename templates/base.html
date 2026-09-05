@@ -72,73 +72,77 @@
         >
       </form>
 
-      <!-- Notification Bell -->
-      <button class="netflix-icon-btn d-none d-sm-block" title="Notifications" type="button">
-        <i class="bi bi-bell"></i>
-      </button>
-
-      <!-- User Avatar / Profile Dropdown -->
-      <div class="dropdown">
-        <a
-          href="#"
-          class="d-flex align-items-center text-decoration-none dropdown-toggle-custom"
-          id="profileDropdown"
+      <!-- Interactive Notification Bell Dropdown -->
+      <div class="dropdown me-2">
+        <button
+          class="netflix-icon-btn position-relative"
+          id="notificationBellBtn"
+          title="Notifications"
+          type="button"
           data-bs-toggle="dropdown"
           aria-expanded="false"
         >
-          <img
-            src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
-            alt="VIP Profile"
-            class="netflix-avatar"
-            onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
-          >
-          <i class="bi bi-caret-down-fill ms-1 text-light small opacity-75"></i>
-        </a>
-        <div class="dropdown-menu dropdown-menu-end justyflix-profile-menu shadow-lg p-0" aria-labelledby="profileDropdown">
-          <!-- Profile Header -->
-          <div class="justyflix-profile-header p-3 border-bottom border-secondary border-opacity-25 d-flex align-items-center gap-3">
-            <img
-              src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
-              alt="VIP Avatar"
-              class="rounded"
-              style="width: 38px; height: 38px; object-fit: cover; border: 1px solid rgba(255, 255, 255, 0.25);"
-              onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
+          <i class="bi bi-bell-fill" id="notificationBellIcon"></i>
+          <span
+            id="notificationBadge"
+            class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+            style="font-size: 0.62rem; padding: 0.22em 0.42em; display: none;"
+          >0</span>
+        </button>
+
+        <div
+          class="dropdown-menu dropdown-menu-end netflix-notification-menu shadow-lg p-0"
+          id="notificationDropdown"
+          aria-labelledby="notificationBellBtn"
+        >
+          <!-- Notification Drawer Header -->
+          <div class="d-flex align-items-center justify-content-between p-3 border-bottom border-secondary border-opacity-25" style="background-color: #1c1c1c;">
+            <div class="d-flex align-items-center gap-2">
+              <i class="bi bi-bell-fill text-danger"></i>
+              <span class="fw-bold text-white fs-6 mb-0">Notifications</span>
+              <span class="badge bg-danger rounded-pill" id="notificationHeaderBadge" style="font-size: 0.68rem;">0 New</span>
+            </div>
+            <button
+              type="button"
+              class="btn btn-sm btn-link text-secondary text-decoration-none p-0 small"
+              id="markAllNotificationsReadBtn"
+              style="font-size: 0.75rem;"
             >
-            <div>
-              <div class="fw-bold text-white fs-6">Justyflix VIP</div>
-              <div class="small text-success d-flex align-items-center gap-1" style="font-size: 0.75rem;">
-                <i class="bi bi-patch-check-fill"></i> Direct Downloader Ready
-              </div>
+              Mark all read
+            </button>
+          </div>
+
+          <!-- Notification Items List -->
+          <div id="notificationList" class="netflix-notification-list">
+            <div class="p-4 text-center text-secondary small" id="notificationLoading">
+              <div class="spinner-border spinner-border-sm text-danger me-2" role="status"></div>
+              Checking for new releases...
             </div>
           </div>
 
-          <!-- Menu Items -->
-          <div class="py-2">
-            <a class="justyflix-dropdown-item" href="{{ url_for('home') }}">
-              <i class="bi bi-house-door-fill text-danger me-2"></i> Browse Home
-            </a>
-            <a class="justyflix-dropdown-item" href="{{ url_for('home', status='available') }}">
-              <i class="bi bi-cloud-arrow-down-fill text-success me-2"></i> Direct Downloads Ready
-            </a>
-            <a class="justyflix-dropdown-item" href="{{ url_for('home', genre='Hollywood') }}">
-              <i class="bi bi-film text-danger me-2"></i> Hollywood Releases
-            </a>
-            <a class="justyflix-dropdown-item" href="{{ url_for('home', genre='Bollywood') }}">
-              <i class="bi bi-film text-danger me-2"></i> Bollywood Hindi Releases
-            </a>
-            <div class="dropdown-divider border-secondary border-opacity-25 my-1"></div>
-            <a class="justyflix-dropdown-item" href="{{ url_for('scrape_view') }}">
-              <i class="bi bi-speedometer2 text-warning me-2"></i> Crawler Dashboard & Settings
-            </a>
-            <div class="dropdown-divider border-secondary border-opacity-25 my-1"></div>
-            <a class="justyflix-dropdown-item text-secondary" href="javascript:void(0);" onclick="location.reload();">
-              <i class="bi bi-arrow-clockwise me-2"></i> Refresh Catalog
+          <!-- Notification Drawer Footer -->
+          <div class="p-2 border-top border-secondary border-opacity-25 text-center" style="background-color: #161616;">
+            <a href="{{ url_for('home', status='available') }}" class="small text-danger text-decoration-none fw-semibold">
+              <i class="bi bi-collection-play me-1"></i> View All Available Releases
             </a>
           </div>
         </div>
       </div>
+
+      <!-- Clean User Avatar / VIP Profile -->
+      <div class="d-flex align-items-center" title="Justyflix VIP Member">
+        <img
+          src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
+          alt="VIP Profile"
+          class="netflix-avatar"
+          onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
+        >
+      </div>
     </div>
   </header>
+
+  <!-- Live Scraped Release Toast Notification Container -->
+  <div id="notificationToastContainer" class="position-fixed top-0 end-0 p-3" style="z-index: 9999; margin-top: 55px; pointer-events: none;"></div>
 
   <!-- Main Content Block -->
   <main class="flex-grow-1">

@@ -1,5 +1,7 @@
 import os
+import re
 import threading
+from datetime import datetime
 from typing import Dict, Any
 from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context
 from flask_cors import CORS
@@ -454,6 +456,83 @@ def api_crawl_status():
         "status": "success",
         "crawler": crawler_state,
         "database": db.get_stats()
+    }), 200
+
+
+@app.route('/api/notifications', methods=['GET'])
+def api_notifications():
+    """
+    Returns latest scraped movies and future releases for real-time notification bell.
+    Detects newly scraped titles, 2026 releases, and future releases.
+    """
+    all_movies = db.get_all_movies()
+    recent_movies = all_movies[:20]
+    now = datetime.utcnow()
+
+    notifications = []
+    for m in recent_movies:
+        scraped_at_str = m.get("scraped_at")
+        time_ago = "2026 Release"
+        if scraped_at_str:
+            try:
+                clean_ts = scraped_at_str.replace('Z', '').split('.')[0]
+                dt = datetime.fromisoformat(clean_ts)
+                diff_sec = max(0, (now - dt).total_seconds())
+                if diff_sec < 60:
+                    time_ago = "Just now"
+                elif diff_sec < 3600:
+                    mins = int(diff_sec // 60)
+                    time_ago = f"{mins}m ago"
+                elif diff_sec < 86400:
+                    hrs = int(diff_sec // 3600)
+                    time_ago = f"{hrs}h ago"
+                elif diff_sec < 604800:
+                    days = int(diff_sec // 86400)
+                    time_ago = f"{days}d ago"
+                else:
+                    time_ago = "Recently Added"
+            except Exception:
+                time_ago = "2026 Release"
+
+        year_str = str(m.get("year", "2026")).strip()
+        is_future = False
+        try:
+            m_year = re.search(r'\b(20\d\d)\b', year_str)
+            year_int = int(m_year.group(1)) if m_year else 2026
+            is_future = (year_int >= 2026)
+        except Exception:
+            is_future = True
+
+        status = m.get("status", "pending")
+        if status == "available":
+            badge_text = "Direct Ready"
+        elif str(m.get("year")) > "2026":
+            badge_text = f"Upcoming {m.get('year')}"
+        else:
+            badge_text = "New 2026"
+
+        notifications.append({
+            "id": m["id"],
+            "title": m.get("title", "Untitled"),
+            "year": m.get("year", "2026"),
+            "rating": m.get("rating", "7.0"),
+            "genre": m.get("genre", "Cinema"),
+            "poster": m.get("poster", ""),
+            "status": status,
+            "badge_text": badge_text,
+            "is_future": is_future,
+            "time_ago": time_ago,
+            "scraped_at": scraped_at_str or now.isoformat(),
+            "url": url_for("movie_detail", movie_id=m["id"])
+        })
+
+    stats = db.get_stats()
+    return jsonify({
+        "status": "success",
+        "count": len(notifications),
+        "total_movies": stats.get("total", len(all_movies)),
+        "last_scrape": stats.get("last_scrape", now.isoformat()),
+        "notifications": notifications
     }), 200
 
 

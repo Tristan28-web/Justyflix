@@ -13,7 +13,7 @@
     <!-- Meta details line -->
     <div class="netflix-hero-meta">
       <span class="netflix-age-badge">13+</span>
-      <span class="netflix-rating"><i class="bi bi-star-fill me-1"></i>7.8</span>
+      <span class="netflix-rating"><i class="bi bi-star-fill me-1"></i>{{ featured_movie.rating or '7.2' }}</span>
       <span>•</span>
       <span>2026</span>
       <span>•</span>
@@ -106,7 +106,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.5</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.2' }}</span>
             <span>2026</span>
             <span class="quality">1080p</span>
           </div>
@@ -151,7 +151,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.9</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.5' }}</span>
             <span>2026</span>
             <span class="quality">HD</span>
           </div>
@@ -196,7 +196,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.8</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.0' }}</span>
             <span>2026</span>
             <span class="quality">HD</span>
           </div>
@@ -241,7 +241,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>8.1</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.4' }}</span>
             <span>2026</span>
             <span class="quality">GDrive</span>
           </div>
@@ -286,7 +286,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>8.4</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.6' }}</span>
             <span>2026</span>
             <span class="quality">Season 1</span>
           </div>
@@ -340,7 +340,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.8</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.8' }}</span>
             <span>2026</span>
             <span class="quality">HD</span>
           </div>
@@ -395,7 +395,7 @@
         <div class="netflix-card-info">
           <div class="netflix-card-title" title="{{ m.title }}">{{ m.title }}</div>
           <div class="netflix-card-meta">
-            <span class="rating"><i class="bi bi-star-fill me-1"></i>7.6</span>
+            <span class="rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '6.7' }}</span>
             <span>2026</span>
             <span class="quality">Direct</span>
           </div>

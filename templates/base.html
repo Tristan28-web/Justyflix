@@ -24,32 +24,32 @@
     <nav class="d-none d-md-block">
       <ul class="netflix-nav-links">
         <li>
-          <a href="{{ url_for('home') }}" class="netflix-nav-link {% if not genre or genre == 'All' %}active{% endif %}">
+          <a href="{{ url_for('home', nav='home') }}" class="netflix-nav-link {% if nav == 'home' or not nav %}active{% endif %}">
             Home
           </a>
         </li>
         <li>
-          <a href="{{ url_for('home', genre='Hollywood') }}" class="netflix-nav-link {% if genre == 'Hollywood' %}active{% endif %}">
+          <a href="{{ url_for('home', nav='hollywood') }}" class="netflix-nav-link {% if nav == 'hollywood' %}active{% endif %}">
             Hollywood
           </a>
         </li>
         <li>
-          <a href="{{ url_for('home', genre='Bollywood') }}" class="netflix-nav-link {% if genre == 'Bollywood' %}active{% endif %}">
+          <a href="{{ url_for('home', nav='bollywood') }}" class="netflix-nav-link {% if nav == 'bollywood' %}active{% endif %}">
             Bollywood
           </a>
         </li>
         <li>
-          <a href="{{ url_for('home', genre='Series') }}" class="netflix-nav-link {% if genre == 'Series' %}active{% endif %}">
+          <a href="{{ url_for('home', nav='tv_shows') }}" class="netflix-nav-link {% if nav == 'tv_shows' %}active{% endif %}">
             TV Shows
           </a>
         </li>
         <li>
-          <a href="{{ url_for('home', genre='Dual Audio') }}" class="netflix-nav-link {% if genre == 'Dual Audio' %}active{% endif %}">
+          <a href="{{ url_for('home', nav='dual_audio') }}" class="netflix-nav-link {% if nav == 'dual_audio' %}active{% endif %}">
             Dual Audio
           </a>
         </li>
         <li>
-          <a href="{{ url_for('home', status='available') }}" class="netflix-nav-link {% if status == 'available' %}active{% endif %}">
+          <a href="{{ url_for('home', nav='downloads') }}" class="netflix-nav-link {% if nav == 'downloads' or status == 'available' %}active{% endif %}">
             Downloads
           </a>
         </li>

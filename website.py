@@ -161,6 +161,19 @@ NETFLIX_GENRES = [
 ]
 
 
+# Context processor to expose active navbar state across all templates
+@app.context_processor
+def inject_nav_context():
+    nav = request.args.get('nav', '').strip()
+    status = request.args.get('status', '').strip()
+    if not nav:
+        if status == 'available':
+            nav = 'downloads'
+        else:
+            nav = 'home'
+    return {'nav': nav}
+
+
 # Web Routes
 @app.route('/')
 def home():
@@ -170,13 +183,36 @@ def home():
     query = request.args.get('q', '').strip()
     status = request.args.get('status', '').strip()
     genre = request.args.get('genre', '').strip()
+    nav = request.args.get('nav', '').strip()
+
+    if not nav:
+        if status == 'available':
+            nav = 'downloads'
+        else:
+            nav = 'home'
+
+    effective_genre = None
+    effective_status = status or None
+
+    if genre and genre != "All":
+        effective_genre = genre
+    elif nav == 'hollywood':
+        effective_genre = 'Hollywood'
+    elif nav == 'bollywood':
+        effective_genre = 'Bollywood'
+    elif nav == 'tv_shows':
+        effective_genre = 'Series'
+    elif nav == 'dual_audio':
+        effective_genre = 'Dual Audio'
+    elif nav == 'downloads':
+        effective_status = 'available'
 
     pagination = db.get_paginated_movies(
         page=page,
         per_page=per_page,
-        status=status or None,
+        status=effective_status,
         query=query or None,
-        genre=genre if genre and genre != "All" else None
+        genre=effective_genre
     )
     stats = db.get_stats()
     all_movies = db.get_all_movies()
@@ -190,7 +226,7 @@ def home():
     if not featured_movie and all_movies:
         featured_movie = all_movies[0]
 
-    is_filtered = bool((genre and genre != "All") or query or status)
+    is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home'))
 
     # Curate Content Rows for homepage using accurate database genre filters
     trending_movies = all_movies[:18]
@@ -206,7 +242,9 @@ def home():
         stats=stats,
         query=query,
         status=status,
+        nav=nav,
         genre=genre or "All",
+        effective_genre=effective_genre,
         is_filtered=is_filtered,
         featured_movie=featured_movie,
         trending_movies=trending_movies,

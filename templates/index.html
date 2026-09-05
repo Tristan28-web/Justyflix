@@ -63,8 +63,8 @@
   <div class="netflix-pills-row">
     {% for g in netflix_genres %}
     <a
-      href="{{ url_for('home', genre=g, q=query) }}"
-      class="netflix-pill {% if genre == g or (not genre and g == 'All') %}active{% endif %}"
+      href="{{ url_for('home', nav=(nav if nav and nav != 'home' else None), genre=(g if g != 'All' else None), q=(query or None)) }}"
+      class="netflix-pill {% if (genre == g) or (not genre and g == 'All') or (genre == 'All' and g == 'All') %}active{% endif %}"
     >
       {{ g }}
     </a>
@@ -311,10 +311,22 @@
     <h2 class="netflix-row-title">
       {% if query %}
         Featured Matches for "{{ query }}"
-      {% elif genre == 'Series' %}
-        Featured TV & Web Series 2026
       {% elif genre and genre != 'All' %}
-        Featured {{ genre }} 2026 Releases
+        {% if genre == 'Series' %}
+          Featured TV & Web Series 2026
+        {% else %}
+          Featured {{ genre }} 2026 Releases
+        {% endif %}
+      {% elif nav == 'hollywood' %}
+        Featured Hollywood English 2026 Releases
+      {% elif nav == 'bollywood' %}
+        Featured Bollywood Hindi 2026 Releases
+      {% elif nav == 'tv_shows' %}
+        Featured TV & Web Series 2026
+      {% elif nav == 'dual_audio' %}
+        Featured Dual Audio & Multi-Audio 2026 Releases
+      {% elif nav == 'downloads' or status == 'available' %}
+        Featured Direct Downloads
       {% else %}
         Featured Direct Downloads
       {% endif %}
@@ -338,10 +350,16 @@
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
           <span class="netflix-card-badge">
-            {% if genre == 'Series' or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
+            {% if (genre == 'Series' or nav == 'tv_shows') or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
               Series
             {% elif genre and genre != 'All' %}
               {{ genre }}
+            {% elif nav == 'hollywood' %}
+              Hollywood
+            {% elif nav == 'bollywood' %}
+              Bollywood
+            {% elif nav == 'dual_audio' %}
+              Dual
             {% else %}
               {{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}
             {% endif %}
@@ -385,11 +403,21 @@
     <h2 class="netflix-row-title">
       {% if query %}
         Search Results for "{{ query }}" ({{ pagination.total }} titles)
-      {% elif genre == 'Series' %}
-        TV & Web Series 2026 ({{ pagination.total }} titles)
       {% elif genre and genre != 'All' %}
-        {{ genre }} 2026 Releases ({{ pagination.total }} titles)
-      {% elif status == 'available' %}
+        {% if genre == 'Series' %}
+          TV & Web Series 2026 ({{ pagination.total }} titles)
+        {% else %}
+          {{ genre }} 2026 Releases ({{ pagination.total }} titles)
+        {% endif %}
+      {% elif nav == 'hollywood' %}
+        Hollywood English 2026 ({{ pagination.total }} titles)
+      {% elif nav == 'bollywood' %}
+        Bollywood Hindi 2026 ({{ pagination.total }} titles)
+      {% elif nav == 'tv_shows' %}
+        TV Shows & Web Series 2026 ({{ pagination.total }} titles)
+      {% elif nav == 'dual_audio' %}
+        Dual Audio & Multi-Audio 2026 ({{ pagination.total }} titles)
+      {% elif nav == 'downloads' or status == 'available' %}
         Direct Downloads Available ({{ pagination.total }} titles)
       {% else %}
         All 2026 Releases ({{ pagination.total }} titles)
@@ -411,10 +439,16 @@
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
           <span class="netflix-card-badge">
-            {% if genre == 'Series' or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
+            {% if (genre == 'Series' or nav == 'tv_shows') or 'season' in (m.title ~ ' ' ~ m.description)|lower %}
               Series
             {% elif genre and genre != 'All' %}
               {{ genre }}
+            {% elif nav == 'hollywood' %}
+              Hollywood
+            {% elif nav == 'bollywood' %}
+              Bollywood
+            {% elif nav == 'dual_audio' %}
+              Dual
             {% else %}
               {{ m.genre.split(',')[0].strip() if m.genre else (m.year or '2026') }}
             {% endif %}
@@ -445,7 +479,7 @@
   {% if pagination and pagination.total_pages > 1 %}
   <div class="netflix-pagination">
     {% if pagination.has_prev %}
-    <a href="{{ url_for('home', page=pagination.prev_page, q=query, genre=genre) }}" class="netflix-page-btn">
+    <a href="{{ url_for('home', page=pagination.prev_page, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None)) }}" class="netflix-page-btn">
       <i class="bi bi-chevron-left me-1"></i> Prev
     </a>
     {% endif %}
@@ -456,7 +490,7 @@
 
     {% for p in range(start_page, end_page + 1) %}
     <a
-      href="{{ url_for('home', page=p, q=query, genre=genre) }}"
+      href="{{ url_for('home', page=p, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None)) }}"
       class="netflix-page-btn {% if p == pagination.current_page %}active{% endif %}"
     >
       {{ p }}
@@ -464,7 +498,7 @@
     {% endfor %}
 
     {% if pagination.has_next %}
-    <a href="{{ url_for('home', page=pagination.next_page, q=query, genre=genre) }}" class="netflix-page-btn">
+    <a href="{{ url_for('home', page=pagination.next_page, q=(query or None), genre=(genre if genre and genre != 'All' else None), nav=(nav if nav and nav != 'home' else None), status=(status or None)) }}" class="netflix-page-btn">
       Next <i class="bi bi-chevron-right ms-1"></i>
     </a>
     {% endif %}

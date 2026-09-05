@@ -87,10 +87,10 @@
           aria-expanded="false"
         >
           <img
-            src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png"
-            alt="User Profile"
+            src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
+            alt="VIP Profile"
             class="netflix-avatar"
-            onerror="this.onerror=null; this.src='https://placehold.co/32x32/e50914/ffffff?text=J';"
+            onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
           >
           <i class="bi bi-caret-down-fill ms-1 text-light small opacity-75"></i>
         </a>
@@ -98,11 +98,11 @@
           <!-- Profile Header -->
           <div class="justyflix-profile-header p-3 border-bottom border-secondary border-opacity-25 d-flex align-items-center gap-3">
             <img
-              src="https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png"
-              alt="Avatar"
+              src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
+              alt="VIP Avatar"
               class="rounded"
-              style="width: 38px; height: 38px; object-fit: cover;"
-              onerror="this.onerror=null; this.src='https://placehold.co/38x38/e50914/ffffff?text=J';"
+              style="width: 38px; height: 38px; object-fit: cover; border: 1px solid rgba(255, 255, 255, 0.25);"
+              onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
             >
             <div>
               <div class="fw-bold text-white fs-6">Justyflix VIP</div>

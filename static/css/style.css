@@ -412,6 +412,7 @@ body {
 
 .netflix-carousel {
   display: flex;
+  align-items: flex-start;
   gap: 1.15rem;
   overflow-x: auto;
   scroll-behavior: smooth;
@@ -462,15 +463,16 @@ body {
   border-radius: 0 6px 6px 0;
 }
 
-/* Movie Card */
+/* Movie Card - Rigid, Consistent & Uniform Dimensions */
 .netflix-card {
-  flex: 0 0 185px;
   position: relative;
   text-decoration: none;
   color: inherit;
   transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  width: 100%;
 }
 
 .netflix-card:hover {
@@ -478,6 +480,15 @@ body {
   z-index: 15;
 }
 
+/* Enforce exact 185px fixed width inside horizontal carousels */
+.netflix-carousel .netflix-card {
+  flex: 0 0 185px;
+  width: 185px;
+  min-width: 185px;
+  max-width: 185px;
+}
+
+/* Standard Poster Box: Uniform 2:3 vertical aspect ratio */
 .netflix-poster-box {
   width: 100%;
   aspect-ratio: 2 / 3;
@@ -488,10 +499,21 @@ body {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
 }
 
+/* Fixed 185x278px poster box in carousels */
+.netflix-carousel .netflix-poster-box {
+  width: 185px;
+  height: 278px;
+  min-width: 185px;
+  max-width: 185px;
+  min-height: 278px;
+  max-height: 278px;
+}
+
 .netflix-poster-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center top;
   display: block;
 }
 
@@ -513,6 +535,9 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.2rem;
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .netflix-card-title {
@@ -523,6 +548,8 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0;
+  width: 100%;
+  display: block;
 }
 
 .netflix-card-meta {
@@ -544,6 +571,26 @@ body {
   border-radius: 2px;
   font-size: 0.65rem;
   color: #e5e5e5;
+}
+
+/* Catalog Grid Adjustments */
+#movieGrid .col {
+  min-width: 0;
+}
+
+#movieGrid .netflix-card {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  flex: 1 1 auto;
+}
+
+#movieGrid .netflix-poster-box {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  height: auto;
+  min-height: 0;
+  max-height: none;
 }
 
 /* ==========================================================================
@@ -704,8 +751,19 @@ body {
     font-size: 1.75rem;
     letter-spacing: 0.12em;
   }
-  .netflix-card {
-    flex: 0 0 145px;
+  .netflix-carousel .netflix-card {
+    flex: 0 0 140px;
+    width: 140px;
+    min-width: 140px;
+    max-width: 140px;
+  }
+  .netflix-carousel .netflix-poster-box {
+    width: 140px;
+    height: 210px;
+    min-width: 140px;
+    max-width: 140px;
+    min-height: 210px;
+    max-height: 210px;
   }
   .netflix-arrow {
     display: none !important;

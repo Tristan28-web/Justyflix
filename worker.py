@@ -23,14 +23,32 @@ def scrape_only(pages: int = 2, concurrency: int = 4):
     logger.info(f"=== Starting Scheduled 2026+ Scrape Job at {start_time.isoformat()} ===")
 
     try:
-        scraper = MWLBDScraper()
-        # Always sync latest 2026 releases
-        result_2026 = scraper.crawl_2026_archive(start_page=1, end_page=pages, concurrency=concurrency)
+        from scrapers.mwlbd_scraper import MWLBDScraper
+        from scrapers.bolly4u_scraper import Bolly4uScraper
+
+        scrapers = [MWLBDScraper(), Bolly4uScraper()]
+        total_scraped = 0
+
+        for sc in scrapers:
+            try:
+                logger.info(f"Worker running scrape for provider: {sc.provider_name}")
+                for p in range(1, pages + 1):
+                    catalog_items = sc.scrape_catalog_page(p)
+                    for item in catalog_items:
+                        movie_url = item.get("url") or item.get("source_url")
+                        if movie_url:
+                            details = sc.scrape_movie_details(movie_url)
+                            if details:
+                                db.add_or_merge_movie(details)
+                                total_scraped += 1
+            except Exception as sc_err:
+                logger.warning(f"Worker error for provider {sc.provider_name}: {sc_err}")
+
         stats = db.get_stats()
         duration = (datetime.utcnow() - start_time).total_seconds()
         logger.info(
-            f"=== Completed 2026 Scrape Job in {duration:.2f}s! "
-            f"Indexed: {result_2026.get('total_movies')}. "
+            f"=== Completed Multi-Source Scrape Job in {duration:.2f}s! "
+            f"Indexed/Merged: {total_scraped}. "
             f"Total 2026+ movies in DB: {stats.get('total')} ==="
         )
     except Exception as ex:

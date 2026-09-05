@@ -145,47 +145,14 @@
     {% block content %}{% endblock %}
   </main>
 
-  <!-- Authentic Minimalist Justyflix Footer (High-Contrast & 4-Column Layout) -->
-  <footer class="netflix-footer">
+  <!-- Minimalist Justyflix Footer -->
+  <footer class="netflix-footer py-4">
     <div class="netflix-footer-container">
-      <div class="netflix-footer-heading">
-        Questions? Call <a href="tel:18005878935">1-800-JUSTYFLIX</a> or Contact <a href="#">24/7 Cloud Support</a>
-      </div>
-
-      <!-- 4-Column Netflix Grid Links -->
-      <div class="netflix-footer-links">
-        <div class="d-flex flex-column gap-2">
-          <a href="{{ url_for('home') }}">FAQ</a>
-          <a href="{{ url_for('home', status='available') }}">Direct GDrive Streams</a>
-          <a href="{{ url_for('home', genre='Hollywood') }}">Hollywood English</a>
-          <a href="{{ url_for('home', genre='Bollywood') }}">Bollywood Hindi</a>
-        </div>
-        <div class="d-flex flex-column gap-2">
-          <a href="{{ url_for('home') }}">Help Center</a>
-          <a href="{{ url_for('home', genre='Series') }}">TV Shows & Web Series</a>
-          <a href="{{ url_for('home', genre='Dual Audio') }}">Dual Audio 2026</a>
-          <a href="{{ url_for('home', genre='Action') }}">Action & Blockbusters</a>
-        </div>
-        <div class="d-flex flex-column gap-2">
-          <a href="{{ url_for('home') }}">Account & VIP</a>
-          <a href="{{ url_for('home') }}">Ways to Watch</a>
-          <a href="{{ url_for('home', genre='Drama') }}">Drama Cinema</a>
-          <a href="{{ url_for('home', genre='Horror') }}">Horror & Thrillers</a>
-        </div>
-        <div class="d-flex flex-column gap-2">
-          <a href="{{ url_for('scrape_view') }}">Crawler Dashboard</a>
-          <a href="{{ url_for('home') }}">Terms of Use</a>
-          <a href="{{ url_for('home') }}">Privacy Policy</a>
-          <a href="{{ url_for('home') }}">Legal & Cloud Notices</a>
-        </div>
-      </div>
-
-      <!-- Copyright & Non-Hosting Disclaimer -->
-      <div class="mt-4 pt-3 border-top border-secondary border-opacity-25">
-        <span class="text-light text-opacity-75 small">&copy; 2026 Justyflix Cinema Inc. All rights reserved. Direct Cloud Stream & Downloader.</span>
-      </div>
-      <div class="netflix-footer-disclaimer">
-        Justyflix does not store or host any video files on its servers. All movies and series are indexed and delivered directly via public Google Drive and verified cloud mirrors with zero server storage costs.
+      <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-secondary small">
+        <span>&copy; 2026 Justyflix. All rights reserved. Direct Cloud Stream & Downloader.</span>
+        <span class="netflix-footer-disclaimer m-0 text-center text-md-end">
+          Justyflix does not store or host video files on its servers. Content is indexed via public cloud mirrors.
+        </span>
       </div>
     </div>
   </footer>

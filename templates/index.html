@@ -6,50 +6,78 @@
 <!-- ==========================================================================
      CINEMATIC BILLBOARD / HERO SECTION (JUSTYFLIX STYLE)
      ========================================================================== -->
-{% if featured_movie and not is_filtered %}
-<section class="netflix-hero" style="background-image: url('{{ featured_movie.poster }}');">
-  <div class="netflix-hero-overlay"></div>
-  <div class="netflix-hero-content">
-    <!-- Meta details line -->
-    <div class="netflix-hero-meta">
-      <span class="netflix-age-badge">13+</span>
-      <span class="netflix-rating"><i class="bi bi-star-fill me-1"></i>{{ featured_movie.rating or '7.2' }}</span>
-      <span>•</span>
-      <span>2026</span>
-      <span>•</span>
-      <span>4K ULTRA HD</span>
-      {% if 'season' in featured_movie.title.lower() or 'series' in featured_movie.genre.lower() %}
-      <span>•</span>
-      <span>Season 1</span>
-      {% endif %}
+{% if featured_movies and not is_filtered %}
+<section class="netflix-hero-slider" id="netflixHeroSlider" aria-label="Featured Movies Billboard">
+  <div class="netflix-hero-slides">
+    {% for m in featured_movies %}
+    <div class="netflix-hero-slide {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}">
+      <!-- Cinematic Backdrop with Smooth Ken Burns Slow-Zoom Animation -->
+      <div class="netflix-hero-bg" style="background-image: url('{{ m.poster }}');"></div>
+      <div class="netflix-hero-overlay"></div>
+
+      <div class="netflix-hero-content">
+        <!-- Meta badges line -->
+        <div class="netflix-hero-meta">
+          <span class="netflix-age-badge">13+</span>
+          <span class="netflix-rating"><i class="bi bi-star-fill me-1"></i>{{ m.rating or '7.2' }}</span>
+          <span>•</span>
+          <span>{{ m.year or '2026' }}</span>
+          <span>•</span>
+          <span class="badge bg-danger text-uppercase px-2 py-1" style="font-size: 0.7rem; letter-spacing: 0.5px;">TOP {{ loop.index }} FEATURED</span>
+          <span>•</span>
+          <span>4K ULTRA HD</span>
+          {% if m.genre %}
+          <span>•</span>
+          <span class="text-light">{{ m.genre.split(',')[0] }}</span>
+          {% endif %}
+        </div>
+
+        <!-- Spaced Cinematic Title -->
+        <h1 class="netflix-hero-title">
+          {{ m.title }}
+        </h1>
+
+        <!-- Synopsis -->
+        <p class="netflix-hero-desc">
+          {{ m.clean_description or m.description or 'A brand new 2026 cinematic release with instant streaming and high-speed cloud access.' }}
+        </p>
+
+        <!-- Action Buttons -->
+        <div class="netflix-hero-actions">
+          {% if m.download_links and m.download_links|length > 0 %}
+          <a href="{{ m.download_links[0].url }}" target="_blank" rel="noopener noreferrer" class="btn-netflix-watch">
+            <i class="bi bi-play-fill fs-4"></i> WATCH NOW
+          </a>
+          {% else %}
+          <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="btn-netflix-watch">
+            <i class="bi bi-play-fill fs-4"></i> WATCH NOW
+          </a>
+          {% endif %}
+
+          <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="btn-netflix-secondary">
+            <i class="bi bi-info-circle fs-5"></i> MORE INFO
+          </a>
+        </div>
+      </div>
     </div>
+    {% endfor %}
+  </div>
 
-    <!-- Spaced Cinematic Title -->
-    <h1 class="netflix-hero-title">
-      {{ featured_movie.title }}
-    </h1>
+  <!-- Left / Right Interactive Navigation Controls -->
+  <button class="hero-nav-arrow prev" id="heroPrevBtn" aria-label="Previous Featured Movie" type="button">
+    <i class="bi bi-chevron-left"></i>
+  </button>
+  <button class="hero-nav-arrow next" id="heroNextBtn" aria-label="Next Featured Movie" type="button">
+    <i class="bi bi-chevron-right"></i>
+  </button>
 
-    <!-- Synopsis -->
-    <p class="netflix-hero-desc">
-      {{ featured_movie.description or 'A brand new 2026 cinematic release with instant streaming and high-speed cloud downloads.' }}
-    </p>
-
-    <!-- Action Buttons -->
-    <div class="netflix-hero-actions">
-      {% if featured_movie.download_links and featured_movie.download_links|length > 0 %}
-      <a href="{{ featured_movie.download_links[0].url }}" target="_blank" rel="noopener noreferrer" class="btn-netflix-watch">
-        <i class="bi bi-download fs-5"></i> DOWNLOAD NOW
-      </a>
-      {% else %}
-      <a href="{{ url_for('movie_detail', movie_id=featured_movie.id) }}" class="btn-netflix-watch">
-        <i class="bi bi-play-fill fs-5"></i> WATCH / DOWNLOAD
-      </a>
-      {% endif %}
-
-      <a href="{{ url_for('movie_detail', movie_id=featured_movie.id) }}" class="btn-netflix-secondary">
-        <i class="bi bi-info-circle fs-5"></i> MORE INFO
-      </a>
-    </div>
+  <!-- Presentation Timeline Capsule Indicators with Animated Progress Bars -->
+  <div class="netflix-hero-indicators" id="heroIndicators">
+    {% for m in featured_movies %}
+    <button class="netflix-hero-indicator {% if loop.first %}active{% endif %}" data-slide-to="{{ loop.index0 }}" aria-label="Slide {{ loop.index }}" type="button">
+      <span class="indicator-progress"></span>
+    </button>
+    {% endfor %}
   </div>
 </section>
 {% endif %}

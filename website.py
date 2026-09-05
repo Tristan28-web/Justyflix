@@ -217,14 +217,33 @@ def home():
     stats = db.get_stats()
     all_movies = db.get_all_movies()
 
-    # Pick top featured movie for Justyflix Billboard Hero
-    featured_movie = None
+    # Curate top featured movies for Justyflix Billboard Hero Slider
+    def sanitize_synopsis(desc, title):
+        if not desc:
+            return f"{title} (2026) - A brand new cinematic release with instant streaming and high-speed cloud access."
+        import re
+        s = re.sub(r'available for direct download[^\.]*', 'available for streaming in ultra-high definition', desc, flags=re.IGNORECASE)
+        s = re.sub(r'direct downloads?', 'fast downloads', s, flags=re.IGNORECASE)
+        s = re.sub(r'direct ready', 'instant ready', s, flags=re.IGNORECASE)
+        return s.strip()
+
+    featured_movies = []
+    seen_titles = set()
     for candidate in all_movies:
-        if candidate.get("poster") and len(candidate.get("description", "")) > 15:
-            featured_movie = candidate
-            break
-    if not featured_movie and all_movies:
-        featured_movie = all_movies[0]
+        t = candidate.get("title", "").strip()
+        poster = candidate.get("poster")
+        if poster and t not in seen_titles:
+            c_copy = dict(candidate)
+            c_copy["clean_description"] = sanitize_synopsis(c_copy.get("description", ""), t)
+            featured_movies.append(c_copy)
+            seen_titles.add(t)
+            if len(featured_movies) >= 6:
+                break
+
+    if not featured_movies and all_movies:
+        featured_movies = [dict(m, clean_description=sanitize_synopsis(m.get("description", ""), m.get("title", ""))) for m in all_movies[:5]]
+
+    featured_movie = featured_movies[0] if featured_movies else None
 
     is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home'))
 
@@ -247,6 +266,7 @@ def home():
         effective_genre=effective_genre,
         is_filtered=is_filtered,
         featured_movie=featured_movie,
+        featured_movies=featured_movies,
         trending_movies=trending_movies,
         hollywood_movies=hollywood_movies,
         bollywood_movies=bollywood_movies,

@@ -189,20 +189,68 @@ body {
 }
 
 /* ==========================================================================
-   CINEMATIC BILLBOARD / HERO SECTION
+   CINEMATIC BILLBOARD / HERO SECTION & WOW ALTERNATING SLIDER
    ========================================================================== */
 
-.netflix-hero {
+.netflix-hero,
+.netflix-hero-slider {
   position: relative;
   width: 100%;
-  min-height: 78vh;
+  min-height: 80vh;
+  margin-bottom: 1.5rem;
+  background-color: #141414;
+  overflow: hidden;
+}
+
+.netflix-hero {
   display: flex;
   align-items: flex-end;
   background-size: cover;
   background-position: center top;
   background-repeat: no-repeat;
   padding: 0 3.5rem 4rem 3.5rem;
-  margin-bottom: 1.5rem;
+}
+
+.netflix-hero-slides {
+  position: relative;
+  width: 100%;
+  min-height: 80vh;
+}
+
+.netflix-hero-slide {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  padding: 0 3.5rem 4.5rem 3.5rem;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.85s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.85s;
+  z-index: 1;
+}
+
+.netflix-hero-slide.active {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+/* Cinematic Backdrop with Smooth Ken Burns Slow-Zoom Animation */
+.netflix-hero-bg {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center top;
+  background-repeat: no-repeat;
+  transform: scale(1);
+  transition: transform 6.8s cubic-bezier(0.12, 0.8, 0.32, 1);
+  will-change: transform;
+}
+
+.netflix-hero-slide.active .netflix-hero-bg {
+  transform: scale(1.07);
 }
 
 .netflix-hero-overlay {
@@ -212,15 +260,44 @@ body {
   right: 0;
   bottom: 0;
   background: 
-    linear-gradient(to right, rgba(20, 20, 20, 0.95) 15%, rgba(20, 20, 20, 0.75) 45%, rgba(20, 20, 20, 0.2) 75%, transparent 100%),
-    linear-gradient(to bottom, rgba(20, 20, 20, 0.4) 0%, transparent 35%, rgba(20, 20, 20, 0.6) 70%, #141414 100%);
+    linear-gradient(to right, rgba(20, 20, 20, 0.96) 16%, rgba(20, 20, 20, 0.78) 45%, rgba(20, 20, 20, 0.22) 75%, transparent 100%),
+    linear-gradient(to bottom, rgba(20, 20, 20, 0.35) 0%, transparent 32%, rgba(20, 20, 20, 0.65) 68%, #141414 100%);
   pointer-events: none;
+  z-index: 2;
 }
 
 .netflix-hero-content {
   position: relative;
   z-index: 10;
-  max-width: 650px;
+  max-width: 680px;
+}
+
+/* Staggered "WOW" Presentation Animations on Active Slide */
+.netflix-hero-slide.active .netflix-hero-meta {
+  animation: heroSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both;
+}
+
+.netflix-hero-slide.active .netflix-hero-title {
+  animation: heroSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.18s both;
+}
+
+.netflix-hero-slide.active .netflix-hero-desc {
+  animation: heroSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+}
+
+.netflix-hero-slide.active .netflix-hero-actions {
+  animation: heroSlideUp 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.42s both;
+}
+
+@keyframes heroSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(26px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .netflix-hero-meta {
@@ -250,30 +327,127 @@ body {
 .netflix-hero-title {
   font-size: 3.2rem;
   font-weight: 900;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: #ffffff;
   margin: 0 0 1rem 0;
-  line-height: 1.1;
-  text-shadow: 0 4px 15px rgba(0, 0, 0, 0.8);
+  line-height: 1.12;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.85);
 }
 
 .netflix-hero-desc {
-  font-size: 1rem;
-  line-height: 1.5;
-  color: #cccccc;
+  font-size: 1.02rem;
+  line-height: 1.55;
+  color: #d6d6d6;
   margin: 0 0 1.5rem 0;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
   overflow: hidden;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
 }
 
 .netflix-hero-actions {
   display: flex;
   align-items: center;
   gap: 0.85rem;
+}
+
+/* Left & Right Hero Navigation Arrows */
+.hero-nav-arrow {
+  position: absolute;
+  top: 48%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 56px;
+  background: rgba(18, 18, 18, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.6rem;
+  cursor: pointer;
+  z-index: 25;
+  opacity: 0;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+}
+
+.netflix-hero-slider:hover .hero-nav-arrow {
+  opacity: 0.85;
+}
+
+.hero-nav-arrow:hover {
+  opacity: 1 !important;
+  background: rgba(229, 9, 20, 0.88);
+  color: #ffffff;
+  border-color: var(--netflix-red);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.hero-nav-arrow.prev {
+  left: 1.5rem;
+}
+
+.hero-nav-arrow.next {
+  right: 1.5rem;
+}
+
+/* Presentation Timeline Indicators */
+.netflix-hero-indicators {
+  position: absolute;
+  bottom: 2.25rem;
+  right: 3.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  z-index: 25;
+}
+
+.netflix-hero-indicator {
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  height: 5px;
+  width: 34px;
+  border-radius: 999px;
+  padding: 0;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: width 0.35s ease, background 0.35s ease;
+}
+
+.netflix-hero-indicator.active {
+  width: 58px;
+  background: rgba(255, 255, 255, 0.35);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.indicator-progress {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: var(--netflix-red);
+  border-radius: 999px;
+}
+
+.netflix-hero-indicator.active .indicator-progress {
+  animation: heroProgressFill 6s linear forwards;
+}
+
+@keyframes heroProgressFill {
+  0% {
+    width: 0%;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.netflix-hero-slider:hover .netflix-hero-indicator.active .indicator-progress {
+  animation-play-state: paused;
 }
 
 .btn-netflix-watch {
@@ -958,9 +1132,18 @@ html, body {
   .netflix-navbar {
     padding: 0.75rem 1.75rem;
   }
-  .netflix-hero {
+  .netflix-hero,
+  .netflix-hero-slider,
+  .netflix-hero-slides {
     padding: 0 1.75rem 3rem 1.75rem;
     min-height: 58vh;
+  }
+  .netflix-hero-slide {
+    padding: 0 1.75rem 3rem 1.75rem;
+  }
+  .netflix-hero-indicators {
+    right: 1.75rem;
+    bottom: 1.5rem;
   }
   .netflix-hero-title {
     font-size: 2.3rem;
@@ -1008,10 +1191,29 @@ html, body {
   .netflix-search-input:focus {
     width: 165px;
   }
-  .netflix-hero {
+  .netflix-hero,
+  .netflix-hero-slider,
+  .netflix-hero-slides {
     min-height: 52vh;
     padding: 0 1rem 2.2rem 1rem;
     margin-bottom: 1rem;
+  }
+  .netflix-hero-slide {
+    padding: 0 1rem 2.2rem 1rem;
+  }
+  .hero-nav-arrow {
+    display: none !important;
+  }
+  .netflix-hero-indicators {
+    right: 1rem;
+    bottom: 1rem;
+  }
+  .netflix-hero-indicator {
+    width: 22px;
+    height: 4px;
+  }
+  .netflix-hero-indicator.active {
+    width: 40px;
   }
   .netflix-hero-title {
     font-size: 1.95rem;
@@ -1124,9 +1326,26 @@ html, body {
     width: 28px;
     height: 28px;
   }
-  .netflix-hero {
+  .netflix-hero,
+  .netflix-hero-slider,
+  .netflix-hero-slides {
     min-height: 46vh;
     padding: 0 0.75rem 1.5rem 0.75rem;
+  }
+  .netflix-hero-slide {
+    padding: 0 0.75rem 1.5rem 0.75rem;
+  }
+  .netflix-hero-indicators {
+    right: 0.75rem;
+    bottom: 0.75rem;
+    gap: 0.4rem;
+  }
+  .netflix-hero-indicator {
+    width: 18px;
+    height: 3px;
+  }
+  .netflix-hero-indicator.active {
+    width: 32px;
   }
   .netflix-hero-title {
     font-size: 1.5rem;

@@ -1,9 +1,9 @@
-// ==========================================================================
 // Netflix Carousel Horizontal Scrolling Function
 // ==========================================================================
 window.scrollCarousel = function(carouselId, distance) {
   const carousel = document.getElementById(carouselId);
   if (carousel) {
+    carousel._manualHoldUntil = Date.now() + 7000; // Hold auto-sliding for 7s on manual arrow click
     carousel.scrollBy({
       left: distance,
       behavior: 'smooth'
@@ -311,4 +311,182 @@ document.addEventListener('DOMContentLoaded', () => {
   setInterval(() => {
     fetchAndCheckNotifications(false);
   }, 20000);
+
+  // ==========================================================================
+  // 5. Cinematic Hero Billboard Slider (Alternating Featured Movies with WOW Animation)
+  // ==========================================================================
+  const initHeroBillboardSlider = () => {
+    const slider = document.getElementById('netflixHeroSlider');
+    if (!slider) return;
+
+    const slides = Array.from(slider.querySelectorAll('.netflix-hero-slide'));
+    const indicators = Array.from(slider.querySelectorAll('.netflix-hero-indicator'));
+    const prevBtn = document.getElementById('heroPrevBtn');
+    const nextBtn = document.getElementById('heroNextBtn');
+
+    if (slides.length <= 1) return;
+
+    let currentIndex = 0;
+    let autoSlideInterval = null;
+    let isHovered = false;
+    const SLIDE_DURATION = 6500; // 6.5s per featured title
+
+    const restartIndicatorProgress = (elem) => {
+      if (!elem) return;
+      const prog = elem.querySelector('.indicator-progress');
+      if (prog) {
+        prog.style.animation = 'none';
+        void prog.offsetWidth; // Force reflow to re-trigger keyframe animation
+        prog.style.animation = '';
+      }
+    };
+
+    const activateSlide = (newIndex) => {
+      if (newIndex === currentIndex) return;
+
+      // Deactivate current slide & indicator
+      slides[currentIndex].classList.remove('active');
+      if (indicators[currentIndex]) {
+        indicators[currentIndex].classList.remove('active');
+      }
+
+      currentIndex = (newIndex + slides.length) % slides.length;
+
+      // Activate new slide & indicator
+      slides[currentIndex].classList.add('active');
+      if (indicators[currentIndex]) {
+        indicators[currentIndex].classList.add('active');
+        restartIndicatorProgress(indicators[currentIndex]);
+      }
+    };
+
+    const advanceNext = () => {
+      activateSlide(currentIndex + 1);
+    };
+
+    const advancePrev = () => {
+      activateSlide(currentIndex - 1);
+    };
+
+    const startTimer = () => {
+      if (autoSlideInterval) clearInterval(autoSlideInterval);
+      autoSlideInterval = setInterval(() => {
+        if (!isHovered && !document.hidden) {
+          advanceNext();
+        }
+      }, SLIDE_DURATION);
+    };
+
+    // Hover pauses auto-slide and progress animation
+    slider.addEventListener('mouseenter', () => {
+      isHovered = true;
+    });
+    slider.addEventListener('mouseleave', () => {
+      isHovered = false;
+    });
+
+    // Touch support for mobile devices
+    slider.addEventListener('touchstart', () => {
+      isHovered = true;
+    }, { passive: true });
+    slider.addEventListener('touchend', () => {
+      setTimeout(() => { isHovered = false; }, 2500);
+    }, { passive: true });
+
+    // Indicators click to jump directly
+    indicators.forEach((indicator, idx) => {
+      indicator.addEventListener('click', (e) => {
+        e.preventDefault();
+        activateSlide(idx);
+        startTimer();
+      });
+    });
+
+    // Prev / Next arrow buttons
+    if (prevBtn) {
+      prevBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        advancePrev();
+        startTimer();
+      });
+    }
+
+    if (nextBtn) {
+      nextBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        advanceNext();
+        startTimer();
+      });
+    }
+
+    // Page Visibility API: pause when tab hidden, resume when visible
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) {
+        if (autoSlideInterval) clearInterval(autoSlideInterval);
+      } else {
+        startTimer();
+      }
+    });
+
+    // Start auto timer
+    startTimer();
+  };
+
+  // ==========================================================================
+  // 6. Presentation Movie Carousel Horizontal Auto-Sliding (Smooth & Lightweight)
+  // ==========================================================================
+  const initPresentationCarousels = () => {
+    const carousels = document.querySelectorAll('.netflix-carousel');
+    if (!carousels.length) return;
+
+    // Use IntersectionObserver so off-screen carousels do not execute scroll calculations
+    const visibleCarousels = new Set();
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          visibleCarousels.add(entry.target);
+        } else {
+          visibleCarousels.delete(entry.target);
+        }
+      });
+    }, { threshold: 0.15 });
+
+    carousels.forEach((carousel, idx) => {
+      observer.observe(carousel);
+
+      let isPaused = false;
+      const container = carousel.closest('.netflix-carousel-container') || carousel;
+
+      container.addEventListener('mouseenter', () => { isPaused = true; });
+      container.addEventListener('mouseleave', () => { isPaused = false; });
+      container.addEventListener('touchstart', () => { isPaused = true; }, { passive: true });
+      container.addEventListener('touchend', () => {
+        setTimeout(() => { isPaused = false; }, 3000);
+      }, { passive: true });
+
+      // Stagger intervals across carousels (e.g., 4.2s, 4.8s, 5.3s) for natural presentation flow
+      const intervalDuration = 4200 + ((idx * 650) % 2000);
+
+      setInterval(() => {
+        if (document.hidden) return; // Tab not focused
+        if (isPaused) return; // User hover/touch
+        if (carousel._manualHoldUntil && Date.now() < carousel._manualHoldUntil) return; // Recently clicked arrows
+        if (!visibleCarousels.has(carousel)) return; // Out of viewport
+
+        // Calculate smooth slide step (~2 to 3 cards width)
+        const step = Math.max(280, Math.floor(carousel.clientWidth * 0.68));
+        const maxScroll = carousel.scrollWidth - carousel.clientWidth;
+
+        if (carousel.scrollLeft >= maxScroll - 20) {
+          // Reached end: loop smoothly back to beginning
+          carousel.scrollTo({ left: 0, behavior: 'smooth' });
+        } else {
+          carousel.scrollBy({ left: step, behavior: 'smooth' });
+        }
+      }, intervalDuration);
+    });
+  };
+
+  initHeroBillboardSlider();
+  initPresentationCarousels();
 });

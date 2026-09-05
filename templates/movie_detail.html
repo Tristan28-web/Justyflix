@@ -102,9 +102,14 @@
           <div class="fw-bold text-white fs-5">
             {{ link.label or 'Google Drive High-Speed Download' }}
           </div>
-          <div class="d-flex gap-2 align-items-center mt-1">
+          <div class="d-flex gap-2 align-items-center mt-1 flex-wrap">
             {% if link.quality %}
             <span class="badge bg-danger">{{ link.quality }}</span>
+            {% endif %}
+            {% if 'dual audio' in movie.description.lower() or 'dual audio' in movie.genre.lower() or 'hindi org & eng' in movie.description.lower() or 'eng' in (link.label or '').lower() %}
+            <span class="badge bg-dark border border-info border-opacity-50 text-info" title="Includes Hindi & English Audio Tracks">
+              <i class="bi bi-volume-up-fill me-1"></i> Dual Audio (Hindi & English)
+            </span>
             {% endif %}
             {% if link.size %}
             <span class="badge bg-secondary">{{ link.size }}</span>
@@ -139,6 +144,19 @@
       </div>
       {% endfor %}
     </div>
+
+    <!-- Dual Audio Automatic English Setup Notice -->
+    <div class="mt-3 p-3 rounded bg-black bg-opacity-40 border border-secondary border-opacity-25 d-flex align-items-center justify-content-between flex-wrap gap-2 text-muted small">
+      <div class="d-flex align-items-center gap-2">
+        <i class="bi bi-info-circle-fill text-info fs-5"></i>
+        <span>
+          <strong>Default Audio Tip:</strong> Dual Audio movies include both <strong>Hindi</strong> (Track 1) and <strong>English</strong> (Track 2). Set your media player's preferred audio language to <code class="text-info bg-dark px-2 py-0.5 rounded">eng</code> to automatically play English by default.
+        </span>
+      </div>
+      <button class="btn btn-sm btn-outline-secondary text-light py-1 px-3 text-nowrap" data-bs-toggle="modal" data-bs-target="#audioHelpModal">
+        <i class="bi bi-gear-fill me-1"></i> Player Setup Guide
+      </button>
+    </div>
     {% else %}
     <div class="text-center py-4 text-muted">
       <p class="mb-0">No direct download links indexed yet for this title.</p>
@@ -162,6 +180,91 @@
     </div>
   </div>
   {% endif %}
+</div>
+
+<!-- Audio Player Setup Modal -->
+<div class="modal fade" id="audioHelpModal" tabindex="-1" aria-labelledby="audioHelpModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark text-light border border-secondary border-opacity-50" style="border-radius: 12px;">
+      <div class="modal-header border-secondary border-opacity-25">
+        <h5 class="modal-title fw-bold text-white d-flex align-items-center gap-2" id="audioHelpModalLabel">
+          <i class="bi bi-headphones text-danger"></i> Automatic Default English Audio Setup
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body p-4">
+        <p class="text-secondary mb-3">
+          Dual Audio releases embed both <strong class="text-white">Track 1: Hindi</strong> and <strong class="text-white">Track 2: English</strong>. You only need to set your media player's preferred audio language <strong>once</strong> (takes 10 seconds). Afterward, your player will <strong>automatically pick English</strong> on all Hollywood/Dual Audio movies, while pure Bollywood movies will continue playing in Hindi!
+        </p>
+
+        <div class="accordion accordion-flush" id="playerAccordion">
+          <!-- VLC -->
+          <div class="accordion-item bg-transparent border border-secondary border-opacity-25 rounded mb-2">
+            <h2 class="accordion-header">
+              <button class="accordion-button bg-dark text-white fw-bold shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#vlcHelp" aria-expanded="true">
+                <i class="bi bi-play-btn-fill text-warning me-2"></i> VLC Media Player (Recommended)
+              </button>
+            </h2>
+            <div id="vlcHelp" class="accordion-collapse collapse show" data-bs-parent="#playerAccordion">
+              <div class="accordion-body text-secondary small">
+                <ol class="ps-3 mb-0 d-flex flex-column gap-2">
+                  <li>Open <strong>VLC Media Player</strong>.</li>
+                  <li>Click <strong class="text-white">Tools</strong> on the top menu &rarr; select <strong class="text-white">Preferences</strong> (or press <kbd class="bg-secondary text-white">Ctrl + P</kbd>).</li>
+                  <li>Click the <strong class="text-white">Audio</strong> tab at the top.</li>
+                  <li>Scroll down to the <strong>Tracks</strong> section &rarr; look for <strong class="text-white">Preferred audio language</strong>.</li>
+                  <li>In the text box, type: <code class="text-info bg-black px-2 py-1 rounded fw-bold">eng, en, english</code></li>
+                  <li>Click <strong class="text-success">Save</strong> at the bottom right.</li>
+                  <li>Restart VLC. All Hollywood movies will now play in English automatically!</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- MPC-HC -->
+          <div class="accordion-item bg-transparent border border-secondary border-opacity-25 rounded mb-2">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed bg-dark text-white fw-bold shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#mpcHelp">
+                <i class="bi bi-film text-danger me-2"></i> Media Player Classic (MPC-HC / K-Lite)
+              </button>
+            </h2>
+            <div id="mpcHelp" class="accordion-collapse collapse" data-bs-parent="#playerAccordion">
+              <div class="accordion-body text-secondary small">
+                <ol class="ps-3 mb-0 d-flex flex-column gap-2">
+                  <li>Open <strong>MPC-HC</strong>.</li>
+                  <li>Click <strong class="text-white">View</strong> &rarr; <strong class="text-white">Options</strong> (or press <kbd class="bg-secondary text-white">O</kbd>).</li>
+                  <li>In the left sidebar under <strong>Playback</strong>, click <strong class="text-white">Audio</strong>.</li>
+                  <li>Under <strong>Default track preference</strong>, type: <code class="text-info bg-black px-2 py-1 rounded fw-bold">eng</code></li>
+                  <li>Click <strong class="text-success">Apply</strong> then <strong class="text-white">OK</strong>.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+
+          <!-- PotPlayer -->
+          <div class="accordion-item bg-transparent border border-secondary border-opacity-25 rounded">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed bg-dark text-white fw-bold shadow-none" type="button" data-bs-toggle="collapse" data-bs-target="#potHelp">
+                <i class="bi bi-tv text-primary me-2"></i> PotPlayer
+              </button>
+            </h2>
+            <div id="potHelp" class="accordion-collapse collapse" data-bs-parent="#playerAccordion">
+              <div class="accordion-body text-secondary small">
+                <ol class="ps-3 mb-0 d-flex flex-column gap-2">
+                  <li>Open <strong>PotPlayer</strong> and press <kbd class="bg-secondary text-white">F5</kbd> to open Preferences.</li>
+                  <li>Navigate to <strong class="text-white">Audio</strong> &rarr; <strong class="text-white">Stream Selection</strong>.</li>
+                  <li>In <strong>Preferred Languages</strong>, enter: <code class="text-info bg-black px-2 py-1 rounded fw-bold">English;eng</code></li>
+                  <li>Click <strong class="text-success">OK</strong>.</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary border-opacity-25">
+        <button type="button" class="btn btn-danger btn-sm px-4" data-bs-dismiss="modal">Got it!</button>
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}
 

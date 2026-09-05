@@ -289,13 +289,13 @@ def home():
     # Curate Featured Carousel Movies (20 titles with poster)
     featured_carousel_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:20]
 
-    # Curate Latest Movies Carousel Movies (20 titles with poster)
-    latest_carousel_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:20]
+    # Curate Latest Movies Grid Movies (45 titles = 5 horizontal x 9 vertical with poster)
+    homepage_latest_movies = [enrich_movie(m) for m in all_movies if m.get("poster")][:45]
 
-    # Curate TV & WEB Series Carousel Movies (series titles with poster)
-    series_movies = [enrich_movie(m) for m in db.get_all_movies(genre='Series') if m.get("poster")][:20]
+    # Curate TV & WEB Series Grid Movies (25 titles = 5 horizontal x 5 vertical with poster)
+    homepage_series_movies = [enrich_movie(m) for m in db.get_all_movies(genre='Series') if m.get("poster")][:25]
 
-    # Enrich paginated items for Latest Movies Grid
+    # Enrich paginated items for Dedicated Catalog Grid
     pagination["items"] = [enrich_movie(m) for m in pagination["items"]]
 
     is_filtered = bool((genre and genre != "All") or query or effective_status or (nav and nav != 'home') or (view and view != 'home'))
@@ -315,8 +315,10 @@ def home():
         featured_movie=featured_movie,
         featured_movies=featured_movies,
         featured_carousel_movies=featured_carousel_movies,
-        latest_carousel_movies=latest_carousel_movies,
-        series_movies=series_movies,
+        latest_carousel_movies=homepage_latest_movies,
+        homepage_latest_movies=homepage_latest_movies,
+        series_movies=homepage_series_movies,
+        homepage_series_movies=homepage_series_movies,
         netflix_genres=NETFLIX_GENRES,
         categories=MWLBD_CATEGORIES
     )

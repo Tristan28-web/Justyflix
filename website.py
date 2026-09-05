@@ -3,7 +3,7 @@ import re
 import threading
 from datetime import datetime
 from typing import Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context, send_from_directory
 from flask_cors import CORS
 from config import Config, setup_logger
 from database import db
@@ -255,6 +255,12 @@ def home():
         netflix_genres=NETFLIX_GENRES,
         categories=MWLBD_CATEGORIES
     )
+
+
+@app.route('/favicon.ico')
+def favicon():
+    """Serves the Justyflix capital J red square favicon."""
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
 @app.route('/movie/<movie_id>')

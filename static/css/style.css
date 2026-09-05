@@ -976,43 +976,169 @@ body {
 }
 
 /* ==========================================================================
-   HOMEPAGE 5-COLUMN NON-ANIMATING MOVIE & SERIES GRID (MATCH USER IMAGES)
+   HOMEPAGE 5-COLUMN NON-ANIMATING MOVIE & SERIES GRID (COMPACT POSTER MATCH)
    ========================================================================== */
+.latest-movies-section,
+.series-section {
+  max-width: 920px;
+}
+
 .sample-grid-5col {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1.35rem 0.95rem;
+  grid-template-columns: repeat(5, minmax(0, 168px));
+  gap: 1.1rem 0.8rem;
   width: 100%;
+  max-width: 920px;
 }
 
 .sample-grid-5col .netflix-card {
   width: 100%;
   min-width: 0;
-  max-width: 100%;
+  max-width: 168px;
   display: flex;
   flex-direction: column;
 }
 
 .sample-grid-5col .netflix-poster-box {
   width: 100%;
+  max-width: 168px;
   aspect-ratio: 2 / 3;
   height: auto;
   min-height: 0;
-  max-height: none;
+  max-height: 252px;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.sample-grid-5col .sample-card-title-line {
+  font-size: 0.82rem;
+  font-weight: 600;
+  margin-top: 0.38rem;
+  margin-bottom: 0.12rem;
+}
+
+.sample-grid-5col .sample-card-subtext {
+  font-size: 0.74rem;
+  color: #888888;
 }
 
 @media (max-width: 992px) {
+  .latest-movies-section,
+  .series-section,
   .sample-grid-5col {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem 0.75rem;
+    max-width: 560px;
+  }
+  .sample-grid-5col {
+    grid-template-columns: repeat(3, minmax(0, 168px));
+    gap: 0.95rem 0.7rem;
   }
 }
 
 @media (max-width: 576px) {
+  .latest-movies-section,
+  .series-section,
+  .sample-grid-5col {
+    max-width: 100%;
+  }
   .sample-grid-5col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem 0.5rem;
   }
+}
+
+/* ==========================================================================
+   YOUTUBE TRAILER POPUP MODAL & PLAYER
+   ========================================================================== */
+.netflix-trailer-modal .modal-content {
+  background-color: #121212 !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.95);
+  overflow: hidden;
+}
+
+.netflix-trailer-modal .modal-header {
+  padding: 1rem 1.25rem 0.6rem 1.25rem;
+}
+
+.trailer-header-badge {
+  background: rgba(229, 9, 20, 0.2);
+  border: 1px solid rgba(229, 9, 20, 0.5);
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 4px;
+}
+
+.trailer-player-wrapper {
+  position: relative;
+  width: 100%;
+  padding-top: 56.25%; /* 16:9 Aspect Ratio */
+  background: #000000;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 0 20px rgba(0, 0, 0, 0.8);
+}
+
+.trailer-iframe {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: none;
+  z-index: 1;
+}
+
+.trailer-loading-spinner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: rgba(10, 10, 10, 0.95);
+  z-index: 2;
+  transition: opacity 0.3s ease;
+}
+
+/* Card Quick Trailer Overlay Button on Hover */
+.card-trailer-overlay-btn {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.8);
+  width: 44px;
+  height: 44px;
+  background: rgba(229, 9, 20, 0.88);
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  color: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  opacity: 0;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  z-index: 8;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.7);
+  padding: 0;
+}
+
+.netflix-card:hover .card-trailer-overlay-btn {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.card-trailer-overlay-btn:hover {
+  background: var(--netflix-red-hover);
+  transform: translate(-50%, -50%) scale(1.12);
 }
 
 /* ==========================================================================

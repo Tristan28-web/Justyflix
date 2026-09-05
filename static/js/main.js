@@ -487,6 +487,99 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   };
 
+  // ==========================================================================
+  // 7. Embedded YouTube Trailer Modal Controller
+  // ==========================================================================
+  const initTrailerModal = () => {
+    const trailerModalEl = document.getElementById('trailerModal');
+    const trailerModalTitle = document.getElementById('trailerModalTitle');
+    const trailerIframe = document.getElementById('trailerIframe');
+    const trailerLoadingSpinner = document.getElementById('trailerLoadingSpinner');
+    const trailerLoadingText = document.getElementById('trailerLoadingText');
+
+    let trailerModalInstance = null;
+
+    if (trailerModalEl && typeof bootstrap !== 'undefined') {
+      trailerModalInstance = bootstrap.Modal.getOrCreateInstance(trailerModalEl);
+
+      // Stop video and audio playback immediately on close
+      trailerModalEl.addEventListener('hidden.bs.modal', () => {
+        if (trailerIframe) trailerIframe.src = '';
+        if (trailerLoadingSpinner) trailerLoadingSpinner.style.display = 'flex';
+      });
+    }
+
+    window.openTrailerModal = async function(title, year = '2026', movieId = '') {
+      if (!trailerModalEl) return;
+      if (!trailerModalInstance && typeof bootstrap !== 'undefined') {
+        trailerModalInstance = bootstrap.Modal.getOrCreateInstance(trailerModalEl);
+      }
+
+      const cleanTitle = (title || 'Movie').trim();
+      if (trailerModalTitle) {
+        trailerModalTitle.textContent = `${cleanTitle} (${year || '2026'})`;
+      }
+
+      if (trailerLoadingSpinner) {
+        trailerLoadingSpinner.style.display = 'flex';
+        trailerLoadingSpinner.style.opacity = '1';
+      }
+      if (trailerLoadingText) {
+        trailerLoadingText.textContent = `Finding official YouTube trailer for ${cleanTitle}...`;
+      }
+      if (trailerIframe) {
+        trailerIframe.src = '';
+      }
+
+      if (trailerModalInstance) {
+        trailerModalInstance.show();
+      }
+
+      try {
+        const url = `/api/trailer?title=${encodeURIComponent(cleanTitle)}&year=${encodeURIComponent(year)}&id=${encodeURIComponent(movieId)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data && data.embed_url && trailerIframe) {
+          trailerIframe.src = data.embed_url;
+          trailerIframe.onload = () => {
+            if (trailerLoadingSpinner) {
+              trailerLoadingSpinner.style.opacity = '0';
+              setTimeout(() => { trailerLoadingSpinner.style.display = 'none'; }, 300);
+            }
+          };
+          // Timeout safeguard to hide spinner after 1.5s
+          setTimeout(() => {
+            if (trailerLoadingSpinner) {
+              trailerLoadingSpinner.style.opacity = '0';
+              setTimeout(() => { trailerLoadingSpinner.style.display = 'none'; }, 300);
+            }
+          }, 1500);
+        }
+      } catch (err) {
+        console.error('Error resolving trailer:', err);
+        if (trailerIframe) {
+          trailerIframe.src = `https://www.youtube-nocookie.com/embed?listType=search&list=${encodeURIComponent(cleanTitle + ' ' + year + ' trailer')}&autoplay=1`;
+        }
+        if (trailerLoadingSpinner) trailerLoadingSpinner.style.display = 'none';
+      }
+    };
+
+    // Delegated click handler for .btn-watch-trailer buttons
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-watch-trailer');
+      if (btn) {
+        e.preventDefault();
+        e.stopPropagation();
+        const title = btn.getAttribute('data-title') || '';
+        const year = btn.getAttribute('data-year') || '2026';
+        const id = btn.getAttribute('data-id') || '';
+        window.openTrailerModal(title, year, id);
+      }
+    });
+  };
+
   initHeroBillboardSlider();
   initPresentationCarousels();
+  initTrailerModal();
 });

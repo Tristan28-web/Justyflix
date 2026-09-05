@@ -44,15 +44,9 @@
 
         <!-- Action Buttons -->
         <div class="netflix-hero-actions">
-          {% if m.download_links and m.download_links|length > 0 %}
-          <a href="{{ m.download_links[0].url }}" target="_blank" rel="noopener noreferrer" class="btn-netflix-watch">
-            <i class="bi bi-play-fill fs-4"></i> WATCH NOW
-          </a>
-          {% else %}
-          <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="btn-netflix-watch">
-            <i class="bi bi-play-fill fs-4"></i> WATCH NOW
-          </a>
-          {% endif %}
+          <button type="button" class="btn-netflix-watch btn-watch-trailer" data-title="{{ m.title }}" data-year="{{ m.year or '2026' }}" data-id="{{ m.id }}" aria-label="Watch Official Trailer for {{ m.title }}">
+            <i class="bi bi-play-fill fs-4"></i> WATCH TRAILER
+          </button>
 
           <a href="{{ url_for('movie_detail', movie_id=m.id) }}" class="btn-netflix-secondary">
             <i class="bi bi-info-circle fs-5"></i> MORE INFO
@@ -135,6 +129,10 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
+          <!-- Quick Trailer Play Overlay Button -->
+          <button type="button" class="card-trailer-overlay-btn btn-watch-trailer" data-title="{{ m.title }}" data-year="{{ m.year or '2026' }}" data-id="{{ m.id }}" title="Watch Trailer for {{ m.title }}">
+            <i class="bi bi-play-circle-fill"></i>
+          </button>
           <!-- FEATURE Red Badge (Image 1) -->
           <span class="badge-feature-red">FEATURE</span>
           <!-- Star Rating (Image 1) -->
@@ -182,6 +180,10 @@
           loading="lazy"
           onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
         >
+        <!-- Quick Trailer Play Overlay Button -->
+        <button type="button" class="card-trailer-overlay-btn btn-watch-trailer" data-title="{{ m.title }}" data-year="{{ m.year or '2026' }}" data-id="{{ m.id }}" title="Watch Trailer for {{ m.title }}">
+          <i class="bi bi-play-circle-fill"></i>
+        </button>
         <!-- Quality Tag Badge -->
         <span class="badge-quality-tag">{{ m.quality_tag }}</span>
         <!-- Star Rating -->
@@ -227,6 +229,10 @@
           loading="lazy"
           onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
         >
+        <!-- Quick Trailer Play Overlay Button -->
+        <button type="button" class="card-trailer-overlay-btn btn-watch-trailer" data-title="{{ m.title }}" data-year="{{ m.year or '2026' }}" data-id="{{ m.id }}" title="Watch Trailer for {{ m.title }}">
+          <i class="bi bi-play-circle-fill"></i>
+        </button>
         <!-- Quality Tag Badge -->
         <span class="badge-quality-tag">{{ m.quality_tag }}</span>
         <!-- Star Rating -->
@@ -297,6 +303,10 @@
             loading="lazy"
             onerror="this.onerror=null; this.src='https://placehold.co/185x278/181818/ffffff?text={{ m.title|urlencode }}';"
           >
+          <!-- Quick Trailer Play Overlay Button -->
+          <button type="button" class="card-trailer-overlay-btn btn-watch-trailer" data-title="{{ m.title }}" data-year="{{ m.year or '2026' }}" data-id="{{ m.id }}" title="Watch Trailer for {{ m.title }}">
+            <i class="bi bi-play-circle-fill"></i>
+          </button>
           <span class="badge-quality-tag">{{ m.quality_tag }}</span>
           <span class="badge-corner-rating">
             <i class="bi bi-star-fill"></i>

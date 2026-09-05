@@ -68,13 +68,16 @@
           </div>
         </div>
 
-        <!-- Direct Share & Source Link -->
-        <div class="d-flex gap-2 align-items-center mt-3 pt-3 border-top border-secondary-subtle">
-          <button class="btn btn-sm btn-outline-secondary btn-copy-link text-light" data-link="{{ request.url }}">
+        <!-- Direct Actions: Watch Trailer, Share & Source Link -->
+        <div class="d-flex gap-2 align-items-center mt-3 pt-3 border-top border-secondary-subtle flex-wrap">
+          <button type="button" class="btn btn-danger btn-watch-trailer px-3 py-2 fw-bold text-white d-inline-flex align-items-center gap-2" data-title="{{ movie.title }}" data-year="{{ movie.year or '2026' }}" data-id="{{ movie.id }}">
+            <i class="bi bi-play-fill fs-5"></i> WATCH TRAILER
+          </button>
+          <button class="btn btn-sm btn-outline-secondary btn-copy-link text-light py-2 px-3" data-link="{{ request.url }}">
             <i class="bi bi-share me-1"></i> Share
           </button>
           {% if movie.source_url %}
-          <a href="{{ movie.source_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary text-light">
+          <a href="{{ movie.source_url }}" target="_blank" rel="noopener noreferrer" class="btn btn-sm btn-outline-secondary text-light py-2 px-3">
             <i class="bi bi-box-arrow-up-right me-1"></i> Source
           </a>
           {% endif %}

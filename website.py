@@ -324,10 +324,92 @@ def home():
     )
 
 
+# In-memory cache for resolved YouTube trailer video IDs
+_TRAILER_CACHE: Dict[str, str] = {}
+
+
 @app.route('/favicon.ico')
 def favicon():
     """Serves the Justyflix capital J red square favicon."""
     return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
+
+@app.route('/api/trailer')
+def api_trailer():
+    """
+    Dynamically resolves or retrieves the official YouTube trailer embed URL
+    for any movie or TV series.
+    """
+    import requests
+    from urllib.parse import quote_plus
+
+    title = request.args.get('title', '').strip()
+    year = request.args.get('year', '').strip()
+    movie_id = request.args.get('id', '').strip()
+
+    if not title and movie_id:
+        m = db.get_movie(movie_id)
+        if m:
+            title = m.get('title', '')
+            year = m.get('year', '')
+
+    if not title:
+        return jsonify({'status': 'error', 'message': 'Movie title is required'}), 400
+
+    # Sanitize title for clean trailer search query
+    clean_title = re.sub(r'\[.*?\]|\(.*?\)|Dual Audio.*|Season\s*\d+.*|Hindi.*|ENG.*|V\d+.*', '', title, flags=re.IGNORECASE).strip(' -:|')
+    if not clean_title:
+        clean_title = title.strip()
+
+    cache_key = f"{clean_title.lower()}_{year}"
+
+    # Return cached YouTube video ID if available
+    if cache_key in _TRAILER_CACHE:
+        video_id = _TRAILER_CACHE[cache_key]
+        return jsonify({
+            'status': 'success',
+            'video_id': video_id,
+            'embed_url': f"https://www.youtube-nocookie.com/embed/{video_id}?autoplay=1&rel=0&modestbranding=1",
+            'clean_title': clean_title
+        })
+
+    # Search YouTube for the official trailer
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+    query = f"{clean_title} {year} official trailer".strip()
+    yt_search_url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
+
+    try:
+        r = requests.get(yt_search_url, headers=headers, timeout=5)
+        if r.status_code == 200:
+            video_ids = re.findall(r'"videoId":"([a-zA-Z0-9_-]{11})"', r.text)
+            if not video_ids:
+                video_ids = re.findall(r'/watch\?v=([a-zA-Z0-9_-]{11})', r.text)
+
+            if video_ids:
+                # Find first valid video ID
+                video_id = video_ids[0]
+                _TRAILER_CACHE[cache_key] = video_id
+                logger.info(f"Resolved trailer for '{clean_title}': YouTube ID {video_id}")
+                return jsonify({
+                    'status': 'success',
+                    'video_id': video_id,
+                    'embed_url': f"https://www.youtube-nocookie.com/embed/{video_id}?autoplay=1&rel=0&modestbranding=1",
+                    'clean_title': clean_title
+                })
+    except Exception as e:
+        logger.warning(f"Error querying YouTube trailer for '{clean_title}': {e}")
+
+    # Fallback to direct search embed if YouTube search scrape didn't match
+    fallback_embed = f"https://www.youtube-nocookie.com/embed?listType=search&list={quote_plus(query)}&autoplay=1"
+    return jsonify({
+        'status': 'fallback',
+        'video_id': '',
+        'embed_url': fallback_embed,
+        'clean_title': clean_title
+    })
 
 
 @app.route('/movie/<movie_id>')

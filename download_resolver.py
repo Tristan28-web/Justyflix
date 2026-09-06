@@ -263,19 +263,26 @@ def resolve_movie_direct_download(
         is_hevc = 'hevc' in target_quality.lower()
 
         # Step 1: Fetch source movie page (resolving authentic fojik.site URL if source_url is third-party/1337x)
-        if ('fojik.site' not in source_url and 'mwlbd' not in source_url) and file_id:
+        if ('fojik.site' not in source_url and 'mwlbd' not in source_url):
             try:
-                from database import db
-                for m in db.get_all_movies():
-                    if 'fojik.site' in m.get('source_url', ''):
-                        for link in m.get('download_links', []):
-                            if link.get('file_id') == file_id:
-                                source_url = m['source_url']
-                                break
-                    if 'fojik.site' in source_url:
-                        break
+                # Extract clean title query from slug or path
+                slug = [p for p in source_url.rstrip('/').split('/') if p][-1]
+                clean_q = re.sub(r'(\d{4}|S\d+|E\d+|1080p|720p|480p|WEB-DL|BluRay).*$', '', slug, flags=re.IGNORECASE).replace('-', ' ').strip()
+                if not clean_q:
+                    clean_q = slug.replace('-', ' ').strip()
+                if clean_q:
+                    search_url = f"https://fojik.site/?s={urllib.parse.quote_plus(clean_q)}"
+                    s_req = urllib.request.Request(search_url, headers=HEADERS)
+                    s_soup = BeautifulSoup(urllib.request.urlopen(s_req, timeout=5).read(), 'html.parser')
+                    for a in s_soup.find_all('a'):
+                        h = a.get('href', '')
+                        if '/movie/' in h and h.startswith('https://fojik.site'):
+                            source_url = h
+                            logger.info(f"Discovered authentic fojik.site URL for title '{clean_q}': {source_url}")
+                            break
             except Exception as e:
-                logger.debug(f"Source URL DB lookup fallback skipped: {e}")
+                logger.debug(f"Fojik title search fallback skipped: {e}")
+
 
         req1 = urllib.request.Request(source_url, headers=HEADERS)
         html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')

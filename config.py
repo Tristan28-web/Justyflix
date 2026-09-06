@@ -83,6 +83,12 @@ class Config:
     # Google Drive Direct Mode
     GOOGLE_DRIVE_DIRECT = os.getenv('GOOGLE_DRIVE_DIRECT', 'true').lower() in ('true', '1', 'yes')
 
+    # Telegram Bot Monitoring & Alerts
+    TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '').strip()
+    TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '').strip()
+    MONITOR_ACCESS_KEY = os.getenv('MONITOR_ACCESS_KEY', '').strip()
+    DAILY_REPORT_INTERVAL_HOURS = int(os.getenv('DAILY_REPORT_INTERVAL_HOURS', 24))
+
 
 def setup_logger(name: str = 'mwlbd_app') -> logging.Logger:
     """Configures structured logger with console and rotating/file output."""

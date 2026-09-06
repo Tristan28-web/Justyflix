@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Live Monitor & Analytics - Justyflix Cinema{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 px-md-5 py-4">
+
+  <!-- Header & Live Pulse -->
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4 border-bottom border-secondary border-opacity-25 pb-3">
+    <div>
+      <div class="d-flex align-items-center gap-2 mb-1">
+        <span class="badge bg-danger text-uppercase px-2 py-1 fw-bold" style="letter-spacing: 1px; font-size: 0.75rem;">
+          SYSTEM MONITOR
+        </span>
+        <span class="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 d-inline-flex align-items-center gap-1">
+          <span class="spinner-grow spinner-grow-sm text-success" role="status" style="width: 8px; height: 8px;"></span>
+          LIVE TRACKING ACTIVE
+        </span>
+      </div>
+      <h1 class="h2 fw-bold text-white mb-0">Justyflix Real-Time Traffic & Download Monitor</h1>
+      <p class="text-secondary small mb-0 mt-1">
+        Autonomous telemetry tracking unique visitors, download velocity, and automated Telegram reporting.
+      </p>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="d-flex align-items-center gap-2 flex-wrap">
+      <button id="btnRefreshStats" class="btn btn-outline-secondary text-light btn-sm px-3 py-2">
+        <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+      </button>
+      <button id="btnTestTelegram" class="btn btn-outline-info btn-sm px-3 py-2">
+        <i class="bi bi-telegram me-1"></i> Test Telegram Ping
+      </button>
+      <button id="btnSend24hReport" class="btn btn-danger btn-sm px-3 py-2 fw-semibold">
+        <i class="bi bi-send-check-fill me-1"></i> Send 24h Report Now
+      </button>
+    </div>
+  </div>
+
+  <!-- Notification Banner -->
+  <div id="actionAlert" class="alert d-none alert-dismissible fade show" role="alert">
+    <span id="actionAlertText"></span>
+    <button type="button" class="btn-close btn-close-white" onclick="document.getElementById('actionAlert').classList.add('d-none');"></button>
+  </div>
+
+  <!-- Key Metrics Row -->
+  <div class="row g-3 mb-4">
+    <!-- Active Right Now -->
+    <div class="col-6 col-lg-3">
+      <div class="card bg-dark border-0 p-3 shadow-sm h-100" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+          <span class="small text-uppercase fw-semibold" style="letter-spacing: 0.5px;">Active Right Now</span>
+          <i class="bi bi-broadcast text-success fs-5"></i>
+        </div>
+        <div class="display-6 fw-bold text-white mb-1" id="statActiveNow">
+          {{ stats.active_now }}
+        </div>
+        <span class="text-success small d-flex align-items-center gap-1">
+          <i class="bi bi-circle-fill text-success" style="font-size: 6px;"></i> Active in last 15 mins
+        </span>
+      </div>
+    </div>
+
+    <!-- Unique Visitors 24h -->
+    <div class="col-6 col-lg-3">
+      <div class="card bg-dark border-0 p-3 shadow-sm h-100" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+          <span class="small text-uppercase fw-semibold" style="letter-spacing: 0.5px;">Visitors (24h)</span>
+          <i class="bi bi-people-fill text-danger fs-5"></i>
+        </div>
+        <div class="display-6 fw-bold text-white mb-1" id="statUnique24h">
+          {{ stats.unique_visitors_24h }}
+        </div>
+        <span class="text-secondary small">
+          All-Time: <strong class="text-light" id="statTotalUnique">{{ stats.total_unique_visitors }}</strong> unique
+        </span>
+      </div>
+    </div>
+
+    <!-- Downloads 24h -->
+    <div class="col-6 col-lg-3">
+      <div class="card bg-dark border-0 p-3 shadow-sm h-100" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+          <span class="small text-uppercase fw-semibold" style="letter-spacing: 0.5px;">Downloads (24h)</span>
+          <i class="bi bi-cloud-arrow-down-fill text-warning fs-5"></i>
+        </div>
+        <div class="display-6 fw-bold text-white mb-1" id="statDownloads24h">
+          {{ stats.downloads_24h }}
+        </div>
+        <span class="text-secondary small">
+          All-Time: <strong class="text-light" id="statTotalDownloads">{{ stats.total_downloads }}</strong> files served
+        </span>
+      </div>
+    </div>
+
+    <!-- Telegram Integration Status -->
+    <div class="col-6 col-lg-3">
+      <div class="card bg-dark border-0 p-3 shadow-sm h-100" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center text-secondary mb-2">
+          <span class="small text-uppercase fw-semibold" style="letter-spacing: 0.5px;">Telegram Alert Bot</span>
+          <i class="bi bi-telegram text-info fs-5"></i>
+        </div>
+        <div class="h4 fw-bold mb-1 mt-2">
+          {% if telegram_ready %}
+          <span class="badge bg-success text-white px-2 py-1"><i class="bi bi-check-circle me-1"></i> Connected</span>
+          {% else %}
+          <span class="badge bg-warning text-dark px-2 py-1"><i class="bi bi-exclamation-triangle me-1"></i> Setup Required</span>
+          {% endif %}
+        </div>
+        <span class="text-secondary small mt-1 d-block">
+          {% if telegram_ready %}
+          Instant new user pings & 24h summaries
+          {% else %}
+          Set TELEGRAM_BOT_TOKEN in .env
+          {% endif %}
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Middle Row: Top Downloads & Traffic Distribution -->
+  <div class="row g-4 mb-4">
+    <!-- Top Downloads Table -->
+    <div class="col-lg-7">
+      <div class="card bg-dark border-0 p-4 shadow-sm h-100" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="text-white fw-bold mb-0">
+            <i class="bi bi-fire text-danger me-2"></i> Most Downloaded Releases (24h)
+          </h5>
+          <span class="badge bg-secondary">Top Activity</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-hover mb-0 align-middle">
+            <thead class="text-secondary small text-uppercase">
+              <tr>
+                <th scope="col" style="width: 50px;">#</th>
+                <th scope="col">Movie / Series</th>
+                <th scope="col">Quality</th>
+                <th scope="col" class="text-end">Downloads</th>
+              </tr>
+            </thead>
+            <tbody id="topDownloadsTable">
+              {% if stats.top_downloads_24h %}
+                {% for dl in stats.top_downloads_24h %}
+                <tr>
+                  <td class="text-secondary fw-bold">{{ loop.index }}</td>
+                  <td>
+                    <a href="/movie/{{ dl.movie_id }}" class="text-light text-decoration-none fw-semibold">
+                      {{ dl.title }}
+                    </a>
+                  </td>
+                  <td><span class="badge bg-danger">{{ dl.quality or '1080p' }}</span></td>
+                  <td class="text-end fw-bold text-white">{{ dl.count }}</td>
+                </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td colspan="4" class="text-center py-4 text-muted">
+                    No downloads recorded in this 24-hour cycle yet.
+                  </td>
+                </tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Devices & Sources -->
+    <div class="col-lg-5">
+      <div class="card bg-dark border-0 p-4 shadow-sm h-100" style="background-color: #181818 !important; border-radius: 12px;">
+        <h5 class="text-white fw-bold mb-3">
+          <i class="bi bi-pie-chart-fill text-danger me-2"></i> Client Devices & Channels
+        </h5>
+
+        <!-- Device Bars -->
+        <div class="mb-4">
+          <div class="d-flex justify-content-between small text-secondary mb-1">
+            <span><i class="bi bi-phone me-1"></i> Mobile</span>
+            <span class="text-light fw-bold" id="devMobilePct">{{ stats.device_breakdown_24h.mobile_pct }}%</span>
+          </div>
+          <div class="progress mb-3" style="height: 6px; background-color: #2b2b2b;">
+            <div id="devMobileBar" class="progress-bar bg-danger" role="progressbar" style="width: {{ stats.device_breakdown_24h.mobile_pct }}%;"></div>
+          </div>
+
+          <div class="d-flex justify-content-between small text-secondary mb-1">
+            <span><i class="bi bi-laptop me-1"></i> Desktop</span>
+            <span class="text-light fw-bold" id="devDesktopPct">{{ stats.device_breakdown_24h.desktop_pct }}%</span>
+          </div>
+          <div class="progress mb-3" style="height: 6px; background-color: #2b2b2b;">
+            <div id="devDesktopBar" class="progress-bar bg-info" role="progressbar" style="width: {{ stats.device_breakdown_24h.desktop_pct }}%;"></div>
+          </div>
+
+          <div class="d-flex justify-content-between small text-secondary mb-1">
+            <span><i class="bi bi-tablet me-1"></i> Tablet</span>
+            <span class="text-light fw-bold" id="devTabletPct">{{ stats.device_breakdown_24h.tablet_pct }}%</span>
+          </div>
+          <div class="progress" style="height: 6px; background-color: #2b2b2b;">
+            <div id="devTabletBar" class="progress-bar bg-warning" role="progressbar" style="width: {{ stats.device_breakdown_24h.tablet_pct }}%;"></div>
+          </div>
+        </div>
+
+        <!-- Top Sources -->
+        <div class="border-top border-secondary border-opacity-25 pt-3">
+          <h6 class="text-white fw-semibold mb-2 small text-uppercase" style="letter-spacing: 0.5px;">
+            Top Referrers
+          </h6>
+          <ul class="list-unstyled mb-0" id="topReferrersList">
+            {% for ref in stats.top_referrers_24h %}
+            <li class="d-flex justify-content-between align-items-center py-1 small">
+              <span class="text-secondary"><i class="bi bi-link-45deg me-1"></i> {{ ref.domain }}</span>
+              <span class="badge bg-dark border border-secondary text-light">{{ ref.count }} visit(s)</span>
+            </li>
+            {% else %}
+            <li class="text-muted small">Direct / Social Media Traffic</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom Row: Real-Time Live Feed -->
+  <div class="row g-4">
+    <!-- Live Visitors Feed -->
+    <div class="col-lg-6">
+      <div class="card bg-dark border-0 p-4 shadow-sm" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="text-white fw-bold mb-0">
+            <i class="bi bi-activity text-success me-2"></i> Recent Visitors Feed
+          </h5>
+          <span class="badge bg-secondary">Real-Time</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm mb-0 align-middle small">
+            <thead class="text-secondary text-uppercase" style="font-size: 0.72rem;">
+              <tr>
+                <th>IP / Country</th>
+                <th>Device</th>
+                <th>Landing</th>
+                <th class="text-end">Seen</th>
+              </tr>
+            </thead>
+            <tbody id="recentVisitorsTable">
+              {% for v in stats.recent_visitors %}
+              <tr>
+                <td>
+                  <span class="badge bg-dark border border-secondary text-light me-1">{{ v.country or 'GL' }}</span>
+                  <code>{{ v.ip_masked }}</code>
+                </td>
+                <td>{{ v.device }} ({{ v.browser }})</td>
+                <td class="text-truncate" style="max-width: 140px;" title="{{ v.landing_page }}">{{ v.landing_page }}</td>
+                <td class="text-end text-secondary">{{ v.timestamp.split(' ')[1] if ' ' in v.timestamp else v.timestamp }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-center py-3 text-muted">No recent visitors logged.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Downloads Feed -->
+    <div class="col-lg-6">
+      <div class="card bg-dark border-0 p-4 shadow-sm" style="background-color: #181818 !important; border-radius: 12px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="text-white fw-bold mb-0">
+            <i class="bi bi-download text-warning me-2"></i> Recent Downloads Feed
+          </h5>
+          <span class="badge bg-secondary">Live</span>
+        </div>
+        <div class="table-responsive">
+          <table class="table table-dark table-sm mb-0 align-middle small">
+            <thead class="text-secondary text-uppercase" style="font-size: 0.72rem;">
+              <tr>
+                <th>Movie Title</th>
+                <th>Quality</th>
+                <th>IP</th>
+                <th class="text-end">Timestamp</th>
+              </tr>
+            </thead>
+            <tbody id="recentDownloadsTable">
+              {% for d in stats.recent_downloads %}
+              <tr>
+                <td class="fw-semibold text-truncate" style="max-width: 180px;">{{ d.movie_title }}</td>
+                <td><span class="badge bg-danger">{{ d.quality }}</span></td>
+                <td><code>{{ d.ip_masked }}</code></td>
+                <td class="text-end text-secondary">{{ d.timestamp_str.split(' ')[1] if ' ' in d.timestamp_str else d.timestamp_str }}</td>
+              </tr>
+              {% else %}
+              <tr><td colspan="4" class="text-center py-3 text-muted">No downloads recorded yet.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const alertBox = document.getElementById('actionAlert');
+  const alertText = document.getElementById('actionAlertText');
+
+  function showAlert(msg, isSuccess) {
+    alertBox.className = `alert alert-${isSuccess ? 'success' : 'danger'} alert-dismissible fade show bg-dark border-${isSuccess ? 'success' : 'danger'} text-light`;
+    alertText.innerHTML = (isSuccess ? '<i class="bi bi-check-circle-fill text-success me-2"></i>' : '<i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>') + msg;
+    alertBox.classList.remove('d-none');
+    setTimeout(() => { alertBox.classList.add('d-none'); }, 6000);
+  }
+
+  // 1. Refresh Stats AJAX
+  async function fetchLiveStats() {
+    try {
+      const resp = await fetch('/api/monitor/stats');
+      const data = await resp.json();
+      if (data.status === 'success' && data.stats) {
+        const s = data.stats;
+        document.getElementById('statActiveNow').textContent = s.active_now;
+        document.getElementById('statUnique24h').textContent = s.unique_visitors_24h;
+        document.getElementById('statTotalUnique').textContent = s.total_unique_visitors;
+        document.getElementById('statDownloads24h').textContent = s.downloads_24h;
+        document.getElementById('statTotalDownloads').textContent = s.total_downloads;
+
+        // Device bars
+        if (s.device_breakdown_24h) {
+          document.getElementById('devMobilePct').textContent = s.device_breakdown_24h.mobile_pct + '%';
+          document.getElementById('devMobileBar').style.width = s.device_breakdown_24h.mobile_pct + '%';
+          document.getElementById('devDesktopPct').textContent = s.device_breakdown_24h.desktop_pct + '%';
+          document.getElementById('devDesktopBar').style.width = s.device_breakdown_24h.desktop_pct + '%';
+          document.getElementById('devTabletPct').textContent = s.device_breakdown_24h.tablet_pct + '%';
+          document.getElementById('devTabletBar').style.width = s.device_breakdown_24h.tablet_pct + '%';
+        }
+      }
+    } catch (err) {
+      console.warn('Live stats refresh error:', err);
+    }
+  }
+
+  document.getElementById('btnRefreshStats').addEventListener('click', function() {
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Refreshing…';
+    fetchLiveStats().then(() => {
+      this.innerHTML = '<i class="bi bi-arrow-clockwise me-1"></i> Refresh';
+    });
+  });
+
+  // Auto-refresh every 12 seconds
+  setInterval(fetchLiveStats, 12000);
+
+  // 2. Test Telegram Ping
+  document.getElementById('btnTestTelegram').addEventListener('click', async function() {
+    const originalHtml = this.innerHTML;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Sending…';
+    try {
+      const resp = await fetch('/api/monitor/test-telegram', { method: 'POST' });
+      const data = await resp.json();
+      showAlert(data.message || data.error || 'Response received', data.success);
+    } catch (e) {
+      showAlert('Request failed: ' + e.message, false);
+    } finally {
+      this.disabled = false;
+      this.innerHTML = originalHtml;
+    }
+  });
+
+  // 3. Send 24h Report
+  document.getElementById('btnSend24hReport').addEventListener('click', async function() {
+    const originalHtml = this.innerHTML;
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span> Dispatching…';
+    try {
+      const resp = await fetch('/api/monitor/send-report', { method: 'POST' });
+      const data = await resp.json();
+      showAlert(data.message || data.error || 'Report dispatched', data.success);
+    } catch (e) {
+      showAlert('Report dispatch failed: ' + e.message, false);
+    } finally {
+      this.disabled = false;
+      this.innerHTML = originalHtml;
+    }
+  });
+});
+</script>
+{% endblock %}

@@ -9,6 +9,9 @@ from config import Config, setup_logger
 from database import db, is_series
 from scraper import MWLBDScraper
 from download_resolver import resolve_movie_direct_download, stream_mkv_with_auto_audio, download_cache, verify_r2_url
+from analytics_tracker import tracker
+from monitoring_scheduler import start_monitoring_scheduler, trigger_immediate_daily_report
+from telegram_notifier import test_telegram_connection, is_telegram_configured
 
 logger = setup_logger('website')
 
@@ -257,6 +260,38 @@ def start_background_auto_sync_daemon(interval_seconds: int = 1800):
 # Start background auto-sync daemon on server startup
 start_background_auto_sync_daemon(interval_seconds=1800)
 
+# Start background 24-hour Telegram monitoring scheduler
+start_monitoring_scheduler()
+
+
+# ── Standalone Real-Time Traffic & Analytics Tracking Hooks ──────────────────
+@app.before_request
+def track_site_traffic():
+    """
+    Records every page visit for live session analytics.
+    Dispatches an automatic Telegram alert whenever a NEW unique user accesses the site.
+    """
+    p = request.path
+    # Ignore static files, favicon, and internal monitoring polling to keep stats pure
+    if p.startswith('/static') or p == '/favicon.ico' or p.startswith('/api/monitor'):
+        return
+    vid = request.cookies.get('justy_vid')
+    is_new, v_hash, _ = tracker.record_visit(request, vid_cookie=vid)
+    request._justy_vid_cookie = vid or v_hash
+    request._justy_is_new = is_new
+
+
+@app.after_request
+def set_visitor_cookie(response):
+    """
+    Sets persistent 1-year visitor identifier cookie to prevent duplicate new-visitor alerts
+    when users browse multiple pages.
+    """
+    vid_cookie = getattr(request, '_justy_vid_cookie', None)
+    if vid_cookie and not request.cookies.get('justy_vid'):
+        response.set_cookie('justy_vid', vid_cookie, max_age=31536000, httponly=True, samesite='Lax')
+    return response
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 # Standard MWLBD Navigation Categories
@@ -564,6 +599,18 @@ def api_direct_stream(infohash):
         resp.headers['Content-Disposition'] = f'attachment; filename="{fn}"'
         resp.headers['Content-Length'] = str(len(torrent_bytes))
         resp.headers['Cache-Control'] = 'no-transform, public, max-age=86400'
+
+        try:
+            tracker.record_download(
+                movie_id=infohash,
+                title=fn,
+                quality="Torrent/Direct",
+                source="itorrents",
+                request_obj=request
+            )
+        except Exception as d_err:
+            logger.debug(f"Analytics download recording error: {d_err}")
+
         return resp
     except Exception as ex:
         logger.warning(f"Direct stream error for infohash {infohash}: {ex}. Launching magnet link fallback...")
@@ -628,6 +675,18 @@ def download_movie(movie_id, link_idx):
         source_url = movie.get('source_url') or target_link.get('url', '')
         fallback_url = target_link.get('url') or target_link.get('original_url', '')
         file_id = target_link.get('file_id', '')
+
+        # Track download event in real-time analytics
+        try:
+            tracker.record_download(
+                movie_id=movie_id,
+                title=movie.get('title', 'Movie'),
+                quality=quality,
+                source='direct_download',
+                request_obj=request
+            )
+        except Exception as d_err:
+            logger.debug(f"Analytics download recording error: {d_err}")
 
         # 0ms Fast Path: Serve pre-resolved Cloudflare R2 / PixelDrain CDN URL from Supabase if present
         cached_r2 = target_link.get("resolved_r2_url")
@@ -862,6 +921,18 @@ def api_start_resolve(movie_id, link_idx):
         source_url = movie.get('source_url') or target_link.get('url', '')
         fallback_url = target_link.get('url') or target_link.get('original_url', '')
         file_id = target_link.get('file_id', '')
+
+        # Track download event in real-time analytics
+        try:
+            tracker.record_download(
+                movie_id=movie_id,
+                title=movie.get('title', 'Movie'),
+                quality=quality,
+                source='web_resolve',
+                request_obj=request
+            )
+        except Exception as d_err:
+            logger.debug(f"Analytics download recording error: {d_err}")
 
         # 0ms Fast Path: If direct Cloudflare R2 / PixelDrain link is pre-resolved in database
         cached_r2 = target_link.get("resolved_r2_url")
@@ -1136,6 +1207,55 @@ def api_get_stats():
         "status": "success",
         "stats": stats
     }), 200
+
+
+# ── Real-Time Standalone Monitoring & Analytics Endpoints ──────────────────
+@app.route('/monitor')
+def monitor_dashboard():
+    """
+    Standalone Real-Time Justyflix Monitoring Dashboard.
+    Provides live active sessions, 24h & total visitors, download analytics,
+    Telegram bot connection status, top downloaded releases, and instant controls.
+    """
+    stats = tracker.get_summary_stats()
+    stats['telegram_configured'] = is_telegram_configured()
+    return render_template(
+        'monitor.html',
+        stats=stats,
+        telegram_ready=is_telegram_configured(),
+        categories=MWLBD_CATEGORIES,
+        nav='monitor'
+    )
+
+
+@app.route('/api/monitor/stats', methods=['GET'])
+def api_monitor_stats():
+    """Returns live JSON metrics for real-time dashboard auto-refresh."""
+    stats = tracker.get_summary_stats()
+    stats['telegram_configured'] = is_telegram_configured()
+    return jsonify({
+        "status": "success",
+        "data": stats
+    }), 200
+
+
+@app.route('/api/monitor/test-telegram', methods=['POST'])
+def api_monitor_test_telegram():
+    """Dispatches a live test ping to the configured Telegram bot."""
+    result = test_telegram_connection()
+    status_code = 200 if result.get("success") else 400
+    return jsonify(result), status_code
+
+
+@app.route('/api/monitor/send-report', methods=['POST'])
+def api_monitor_send_report():
+    """Triggers immediate dispatch of the comprehensive 24-hour summary report to Telegram."""
+    result = trigger_immediate_daily_report()
+    if isinstance(result, bool):
+        result = {"success": result, "message": "Report dispatched" if result else "Failed to dispatch report"}
+    status_code = 200 if result.get("success") else 400
+    return jsonify(result), status_code
+# ─────────────────────────────────────────────────────────────────────────────
 
 
 # Error Handlers

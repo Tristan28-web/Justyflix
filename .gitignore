@@ -37,6 +37,7 @@ venv.bak/
 # Local data & logs (allow seed catalog, exclude runtime files)
 data/logs/
 data/backup/
+data/analytics/
 data/crawler_progress.json
 data/*.tmp
 data/*.lock

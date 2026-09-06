@@ -137,7 +137,7 @@ def resolve_movie_direct_download(
 
     logger.info(f"Resolving direct download for {source_url} ({target_quality})")
 
-    # If URL is a P2P magnet link, resolve via multi-source direct CDN or convert to native direct HTTP download URL
+    # If URL is a P2P magnet link, resolve via multi-source direct CDN or return clean magnet URL for full P2P movie download
     if (fallback_url and fallback_url.startswith('magnet:')) or (source_url and source_url.startswith('magnet:')):
         mag_url = fallback_url if (fallback_url and fallback_url.startswith('magnet:')) else source_url
         
@@ -167,36 +167,13 @@ def resolve_movie_direct_download(
         except Exception as ex_m:
             logger.warning(f"1337x magnet cross-source lookup exception: {ex_m}")
 
-        # 2. Check if infohash metadata exists on gateway
-        infohash_m = re.search(r'urn:btih:([a-fA-F0-9]{40}|[a-zA-Z2-7]{32})', mag_url)
-        if infohash_m:
-            infohash = infohash_m.group(1).upper()
-            gw_url = f"https://itorrents.org/torrent/{infohash}.torrent"
-            try:
-                req_chk = urllib.request.Request(gw_url, headers=HEADERS)
-                with urllib.request.urlopen(req_chk, timeout=3.5) as resp_chk:
-                    if resp_chk.status == 200:
-                        direct_stream_url = f"/api/direct-stream/{infohash}"
-                        res = {
-                            "success": True,
-                            "download_url": direct_stream_url,
-                            "filename": f"movie_{target_quality}.mkv",
-                            "quality": target_quality,
-                            "source": "1337x Native Direct High-Speed Stream",
-                            "error": None
-                        }
-                        download_cache.set(cache_key, res, ttl=1800)
-                        return res
-            except Exception:
-                pass
-
-        # 3. Fallback to magnet URL directly (prevents 404 blank pages)
+        # 2. Return clean magnet link for full P2P movie file download
         res = {
             "success": True,
             "download_url": mag_url,
             "filename": f"movie_{target_quality}.torrent",
             "quality": target_quality,
-            "source": "1337x Magnet Stream",
+            "source": "1337x P2P Magnet Link",
             "error": None
         }
         download_cache.set(cache_key, res, ttl=1800)
@@ -217,48 +194,49 @@ def resolve_movie_direct_download(
             return res
 
     try:
-        # Step 1: Fetch source movie page
-        req1 = urllib.request.Request(source_url, headers=HEADERS)
-        html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')
-        soup1 = BeautifulSoup(html1, 'html.parser')
-
-        # Find form matching file_id or target quality
-        target_form = None
-        if file_id:
-            target_form = soup1.find('form', {'id': file_id})
-        
-        # Parse resolution token and HEVC flag for precise quality matching
         res_m = re.search(r'\b(2160p|1080p|720p|480p|360p|4k)\b', target_quality, re.I)
         res_token = res_m.group(1).lower() if res_m else target_quality.lower()
         is_hevc = 'hevc' in target_quality.lower()
 
-        if not target_form:
-            best_tr_form = None
-            for tr in soup1.find_all('tr'):
-                txt = tr.get_text().lower()
-                if res_token in txt:
-                    f = tr.find('form')
-                    if f and f.find('input', {'name': 'FU'}):
-                        if is_hevc and 'hevc' in txt:
-                            target_form = f
-                            break
-                        if not best_tr_form:
-                            best_tr_form = f
-            if not target_form and best_tr_form:
-                target_form = best_tr_form
+        if file_id and file_id.isdigit() and fallback_url and 'blog.php' in fallback_url:
+            action1 = fallback_url
+            inputs1 = {'FU': file_id}
+        else:
+            # Step 1: Fetch source movie page
+            req1 = urllib.request.Request(source_url, headers=HEADERS)
+            html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')
+            soup1 = BeautifulSoup(html1, 'html.parser')
 
-        if not target_form:
-            # Fallback to any form with FU
-            for f in soup1.find_all('form'):
-                if f.find('input', {'name': 'FU'}):
-                    target_form = f
-                    break
+            target_form = None
+            if file_id:
+                target_form = soup1.find('form', {'id': file_id})
 
-        if not target_form:
-            raise Exception("No download form found on movie page.")
+            if not target_form:
+                best_tr_form = None
+                for tr in soup1.find_all('tr'):
+                    txt = tr.get_text().lower()
+                    if res_token in txt:
+                        f = tr.find('form')
+                        if f and f.find('input', {'name': 'FU'}):
+                            if is_hevc and 'hevc' in txt:
+                                target_form = f
+                                break
+                            if not best_tr_form:
+                                best_tr_form = f
+                if not target_form and best_tr_form:
+                    target_form = best_tr_form
 
-        action1 = target_form.get('action') or "https://search.technews24.site/blog.php"
-        inputs1 = {inp.get('name'): inp.get('value') for inp in target_form.find_all('input')}
+            if not target_form:
+                for f in soup1.find_all('form'):
+                    if f.find('input', {'name': 'FU'}):
+                        target_form = f
+                        break
+
+            if not target_form:
+                raise Exception("No download form found on movie page.")
+
+            action1 = target_form.get('action') or "https://search.technews24.site/blog.php"
+            inputs1 = {inp.get('name'): inp.get('value') for inp in target_form.find_all('input')}
 
         # Step 2: POST to blog.php
         req2 = urllib.request.Request(
@@ -292,7 +270,7 @@ def resolve_movie_direct_download(
         req4 = urllib.request.Request(
             action3,
             data=urllib.parse.urlencode(inputs3).encode('utf-8'),
-            headers={**HEADERS, 'Referer': action2, 'Content-Type': 'application/x-www-form-urlencoded'}
+            headers={**HEADERS, 'Referer': action3, 'Content-Type': 'application/x-www-form-urlencoded'}
         )
         html4 = urllib.request.urlopen(req4, timeout=timeout).read().decode('utf-8', errors='ignore')
 

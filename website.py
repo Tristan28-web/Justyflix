@@ -550,15 +550,15 @@ def download_movie(movie_id, link_idx):
             force_refresh=True
         )
 
-    if not res.get('success') or not res.get('download_url'):
-        logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Falling back safely.")
+    if not res.get('success') or not res.get('download_url') or 'blog.php' in str(res.get('download_url', '')) or 'technews24' in str(res.get('download_url', '')):
+        logger.warning(f"Download resolution failed or returned intermediate HTML for {movie_id} [{quality}]. Safe fallback.")
         return redirect(url_for('movie_detail', movie_id=movie_id))
 
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
 
-    # Redirect relative stream routes, magnet links, or external drive/CDN links directly
-    if r2_url.startswith('/') or r2_url.startswith('magnet:') or 'drive.google.com' in r2_url or ('r2.cloudflarestorage.com' not in r2_url and r2_url.startswith(('http://', 'https://'))):
+    # Redirect relative stream routes, magnet links, or Google Drive / R2 direct storage links
+    if r2_url.startswith('/') or r2_url.startswith('magnet:') or 'drive.google.com' in r2_url or 'r2.cloudflarestorage.com' in r2_url:
         return redirect(r2_url)
     genre_str = str(movie.get('genre', '')).lower()
     desc_str = str(movie.get('description', '')).lower()

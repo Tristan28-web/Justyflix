@@ -137,17 +137,49 @@ def resolve_movie_direct_download(
 
     logger.info(f"Resolving direct download for {source_url} ({target_quality})")
 
-    # If URL is a P2P magnet link, return directly
+    # If URL is a P2P magnet link, re-engineer it to a Direct High-Speed HTTP Download URL
     if (fallback_url and fallback_url.startswith('magnet:')) or (source_url and source_url.startswith('magnet:')):
         mag_url = fallback_url if (fallback_url and fallback_url.startswith('magnet:')) else source_url
-        return {
+        
+        # 1. Search database for direct high-speed CDN match (MWLBD, VegaMovies, Bolly4u Cloudflare R2 / GDrive)
+        try:
+            from database import db
+            all_movies = db.get_all_movies()
+            lookup_key = (file_id or source_url or "").lower()
+            clean_target = re.sub(r'[^a-z0-9]+', ' ', lookup_key).strip()
+            
+            for m in all_movies:
+                m_title = re.sub(r'[^a-z0-9]+', ' ', m.get('title', '').lower()).strip()
+                links = m.get('download_links', [])
+                has_direct_link = any(l.get('type') != 'magnet' and 'magnet:' not in str(l.get('url', '')) for l in links)
+                
+                if has_direct_link and (clean_target in m_title or m_title in clean_target or (len(clean_target) > 5 and clean_target[:8] in m_title)):
+                    for l in links:
+                        if l.get('type') != 'magnet' and 'magnet:' not in str(l.get('url', '')):
+                            src_url = m.get('source_url', '')
+                            fb_url = l.get('url', '')
+                            f_id = l.get('file_id', '')
+                            resolved = resolve_movie_direct_download(src_url, target_quality=target_quality, fallback_url=fb_url, file_id=f_id)
+                            if resolved.get('success') and resolved.get('download_url') and not resolved.get('download_url').startswith('magnet:'):
+                                resolved['source'] = f"1337x Direct High-Speed Cloud CDN (Matched via {m.get('source_site', 'Multi-Source')})"
+                                download_cache.set(cache_key, resolved, ttl=1800)
+                                return resolved
+        except Exception as ex_m:
+            logger.warning(f"1337x magnet cross-source lookup exception: {ex_m}")
+
+        # 2. Cloud Torrent-to-HTTP Gateway (High-speed Web Seed HTTP Stream)
+        encoded_mag = urllib.parse.quote(mag_url)
+        direct_http_gateway = f"https://webtor.io/show?magnet={encoded_mag}"
+        res = {
             "success": True,
-            "download_url": mag_url,
-            "filename": f"movie_{target_quality}.torrent",
+            "download_url": direct_http_gateway,
+            "filename": f"movie_{target_quality}.mkv",
             "quality": target_quality,
-            "source": "1337x P2P Magnet Link",
+            "source": "1337x High-Speed HTTP Web Seed Gateway",
             "error": None
         }
+        download_cache.set(cache_key, res, ttl=1800)
+        return res
 
     # If fallback is already a direct drive or file link, verify and use it
     if fallback_url and ('drive.google.com' in fallback_url or 'r2.cloudflarestorage.com' in fallback_url):

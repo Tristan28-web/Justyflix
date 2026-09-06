@@ -519,8 +519,9 @@ def download_movie(movie_id, link_idx):
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
 
-    # Determine if movie is pure Bollywood (Hindi by default) or Hollywood/Dual Audio (English by default)
-    genre_str = str(movie.get('genre', '')).lower()
+    # Redirect external web seed gateways and magnet-converted direct links directly
+    if 'webtor.io' in r2_url or 'drive.google.com' in r2_url or ('r2.cloudflarestorage.com' not in r2_url and r2_url.startswith(('http://', 'https://'))):
+        return redirect(r2_url)
     desc_str = str(movie.get('description', '')).lower()
     is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
         k in desc_str or k in genre_str for k in ['dual audio', 'hollywood', 'english', '[hindi org & eng]', 'eng & hindi']

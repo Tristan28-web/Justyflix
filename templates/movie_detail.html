@@ -210,13 +210,21 @@ document.addEventListener('DOMContentLoaded', function() {
       this.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Preparing ${quality} Download...`;
 
       try {
-        const resp = await fetch(`/api/resolve-download/${movieId}/${linkIdx}`);
-        const data = await resp.json();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        let data = null;
+        try {
+          const resp = await fetch(`/api/resolve-download/${movieId}/${linkIdx}`, { signal: controller.signal });
+          clearTimeout(timeoutId);
+          data = await resp.json();
+        } catch (fetchErr) {
+          console.warn('API resolve fetch timeout/error, falling back to direct download endpoint:', fetchErr);
+          data = { status: 'success', download_url: `/download/${movieId}/${linkIdx}` };
+        }
 
         if (data.status === 'success' && data.download_url) {
           this.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality} to PC!`;
-          
-          // Primary: Direct same-origin location trigger (bypasses browser popup & antivirus domain blocks)
           window.location.href = data.download_url;
 
           setTimeout(() => {
@@ -233,7 +241,8 @@ document.addEventListener('DOMContentLoaded', function() {
             this.style.pointerEvents = 'auto';
           }, 3500);
         } else {
-          this.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-2"></i> Mirror updating, try again`;
+          // Direct fallback if mirror API response is slow or updating
+          window.location.href = `/download/${movieId}/${linkIdx}`;
           setTimeout(() => {
             this.innerHTML = originalHtml;
             this.disabled = false;
@@ -242,7 +251,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
       } catch (err) {
         console.warn('API download resolve error:', err);
-        this.innerHTML = `<i class="bi bi-exclamation-triangle-fill text-danger me-2"></i> Error connecting`;
+        window.location.href = `/download/${movieId}/${linkIdx}`;
         setTimeout(() => {
           this.innerHTML = originalHtml;
           this.disabled = false;

@@ -329,13 +329,13 @@ def resolve_movie_direct_download(
         if not all_candidate_urls:
             raise Exception("Step 6: Direct server link not available for this title.")
 
-        # Prioritize live technews24.site domain mirrors over dead/timing out technews24.me mirrors
-        candidate_urls = sorted(all_candidate_urls, key=lambda u: (0 if 'technews24.site' in u else 1))
+        # Prioritize live technews24.site domain mirrors over dead/timing out technews24.me mirrors (cap at top 2)
+        candidate_urls = sorted(all_candidate_urls, key=lambda u: (0 if 'technews24.site' in u else 1))[:2]
 
         # Step 7: Resolve candidate link to Cloudflare R2
         for cand_url in candidate_urls:
             try:
-                cand_timeout = 4.0 if 'technews24' in cand_url else timeout
+                cand_timeout = 2.5
                 req7a = urllib.request.Request(cand_url, headers={**HEADERS, 'Referer': links_page_url})
                 html7a = urllib.request.urlopen(req7a, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
                 soup7a = BeautifulSoup(html7a, 'html.parser')

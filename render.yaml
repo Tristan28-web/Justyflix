@@ -6,7 +6,7 @@ services:
     region: oregon
     plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn website:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 120
+    startCommand: gunicorn website:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 300 --preload
     envVars:
       - key: PORT
         value: 10000

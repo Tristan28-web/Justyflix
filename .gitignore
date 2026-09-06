@@ -34,9 +34,11 @@ venv.bak/
 # Environment variables
 .env
 
-# Local data & logs
-/data/
-data/
+# Local data & logs (allow seed catalog, exclude runtime files)
+data/logs/
+data/backup/
+data/crawler_progress.json
+data/*.tmp
 *.log
 logs/
 

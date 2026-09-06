@@ -248,7 +248,7 @@ class JSONDatabase:
         }
 
     def init_db(self) -> None:
-        """Create movies.json if it does not exist or merge seed catalog."""
+        """Create movies.json if it does not exist, then seed in background thread."""
         with _db_lock:
             try:
                 os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
@@ -260,7 +260,10 @@ class JSONDatabase:
                 initial_data = self._default_schema()
                 self._atomic_write(initial_data)
 
-            self.ensure_seeded()
+        # Run ensure_seeded in a background thread to avoid blocking Gunicorn startup
+        # (prevents 502 Bad Gateway on first Render deploy / cold start)
+        seed_thread = threading.Thread(target=self.ensure_seeded, daemon=True, name="db-seed-thread")
+        seed_thread.start()
 
     def _read_data(self) -> Dict[str, Any]:
         """Reads and parses JSON database safely."""

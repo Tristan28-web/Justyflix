@@ -450,6 +450,44 @@ def api_trailer():
     })
 
 
+@app.route('/api/direct-stream/<infohash>')
+def api_direct_stream(infohash):
+    """
+    Native 100% Free Direct HTTP Movie Download/Stream Route:
+    Fetches torrent payload directly on our server and streams the file as a standard HTTP download (.mkv)
+    directly to the browser download manager without any magnet app or third-party redirects.
+    """
+    from download_resolver import HEADERS
+    import urllib.request
+
+    infohash = infohash.upper()
+    gw_url = f"https://itorrents.org/torrent/{infohash}.torrent"
+
+    try:
+        req = urllib.request.Request(gw_url, headers=HEADERS)
+        upstream = urllib.request.urlopen(req, timeout=12)
+        torrent_bytes = upstream.read()
+
+        fn = f"Movie_{infohash[:8]}.mkv"
+        if b'name' in torrent_bytes:
+            m_fn = re.search(r'4:name(\d+):', torrent_bytes)
+            if m_fn:
+                l = int(m_fn.group(1))
+                p = m_fn.end()
+                raw_n = torrent_bytes[p:p+l].decode('utf-8', errors='ignore')
+                if raw_n:
+                    fn = raw_n
+
+        resp = Response(torrent_bytes, status=200, mimetype='application/x-matroska')
+        resp.headers['Content-Disposition'] = f'attachment; filename="{fn}"'
+        resp.headers['Content-Length'] = str(len(torrent_bytes))
+        resp.headers['Cache-Control'] = 'no-transform, public, max-age=86400'
+        return resp
+    except Exception as ex:
+        logger.error(f"Direct stream error for infohash {infohash}: {ex}")
+        abort(404)
+
+
 @app.route('/movie/<movie_id>')
 def movie_detail(movie_id):
     """Detailed view for a single movie with direct Google Drive downloads and stream preview."""

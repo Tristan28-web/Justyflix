@@ -562,7 +562,11 @@ def stream_mkv_with_auto_audio(
 
     resp_headers = {
         'Content-Type': content_type,
-        'Accept-Ranges': 'bytes'
+        'Accept-Ranges': 'bytes',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'self'",
+        'Cache-Control': 'no-transform, public, max-age=86400',
+        'X-Download-Options': 'noopen'
     }
     if content_length:
         resp_headers['Content-Length'] = content_length

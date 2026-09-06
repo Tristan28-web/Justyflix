@@ -190,14 +190,8 @@ document.addEventListener('DOMContentLoaded', function() {
         if (data.status === 'success' && data.download_url) {
           this.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality} to PC!`;
           
-          // Trigger immediate browser file download to local PC
-          const tempAnchor = document.createElement('a');
-          tempAnchor.href = data.download_url;
-          tempAnchor.setAttribute('download', data.filename || '');
-          tempAnchor.style.display = 'none';
-          document.body.appendChild(tempAnchor);
-          tempAnchor.click();
-          document.body.removeChild(tempAnchor);
+          // Primary: Direct same-origin location trigger (bypasses browser popup & antivirus domain blocks)
+          window.location.href = data.download_url;
 
           setTimeout(() => {
             this.innerHTML = originalHtml;

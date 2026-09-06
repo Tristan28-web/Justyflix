@@ -1,10 +1,12 @@
+import os
 import urllib.request, urllib.parse, json, re, logging
 from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+SITE_URL = os.getenv('RENDER_EXTERNAL_URL', 'https://justflix-0rxf.onrender.com')
 HEADERS = {
-    'User-Agent': 'JustFlix/1.0 (https://justflix.onrender.com; contact@justflix.com)'
+    'User-Agent': f'JustFlix/1.0 ({SITE_URL}; contact@justflix.com)'
 }
 
 _METADATA_CACHE: Dict[str, Dict[str, Any]] = {}

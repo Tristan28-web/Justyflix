@@ -845,7 +845,7 @@ class SupabaseDatabase:
         query: Optional[str] = None,
         genre: Optional[str] = None
     ) -> List[Dict[str, Any]]:
-        """Retrieve movies from Supabase with filtering."""
+        """Retrieve movies from Supabase with normalized deduplication and accurate category filtering."""
         try:
             q = self.client.table("movies").select("*")
             if status:
@@ -853,25 +853,43 @@ class SupabaseDatabase:
             if query:
                 q = q.or_(f"title.ilike.%{query}%,genre.ilike.%{query}%,cast.ilike.%{query}%")
             
-            res = q.order("scraped_at", desc=True).limit(500).execute()
+            res = q.order("scraped_at", desc=True).limit(2000).execute()
             movie_list = res.data or []
 
             for m in movie_list:
                 if not m.get("rating"):
                     m["rating"] = calculate_real_or_authentic_rating(m)
 
+            # In-memory deduplication by normalized title
+            seen_titles = set()
+            deduped = []
+            for m in movie_list:
+                raw_t = m.get('title', '')
+                norm = re.sub(r'\[.*?\]|\(.*?\)', '', raw_t)
+                norm = re.sub(r'\b(202\d|hindi|english|eng|org|v\d+|dual|multi|audio|web-dl|bluray|hevc|hd|pre-hd)\b', '', norm, flags=re.IGNORECASE)
+                norm = re.sub(r'[:\-_.]', ' ', norm)
+                norm = ' '.join(norm.lower().split())
+                if not norm:
+                    norm = m.get('id', '')
+                if norm not in seen_titles:
+                    seen_titles.add(norm)
+                    deduped.append(m)
+            movie_list = deduped
+
             if genre and genre.lower() != 'all':
                 g_lower = genre.strip().lower()
                 if g_lower == 'bollywood':
-                    movie_list = [m for m in movie_list if 'bollywood' in m.get("genre", "").lower() or ('hindi' in m.get("genre", "").lower() and 'dubbed' not in m.get("genre", "").lower())]
+                    movie_list = [m for m in movie_list if ('bollywood' in (m.get("genre") or "").lower() or 'hindi' in (m.get("genre") or "").lower()) and not is_series(m)]
                 elif g_lower == 'hollywood':
-                    movie_list = [m for m in movie_list if 'hollywood' in m.get("genre", "").lower() or 'english' in m.get("genre", "").lower()]
+                    movie_list = [m for m in movie_list if ('hollywood' in (m.get("genre") or "").lower() or 'english' in (m.get("genre") or "").lower() or 'english' in (m.get("title") or "").lower() or 'eng' in (m.get("title") or "").lower()) and not is_series(m)]
                 elif g_lower in ('series', 'tv series', 'tv shows'):
                     movie_list = [m for m in movie_list if is_series(m)]
-                elif g_lower in ('movies', 'movie'):
+                elif g_lower in ('movies', 'movie', 'latest_movies'):
                     movie_list = [m for m in movie_list if not is_series(m)]
+                elif g_lower == 'dual audio':
+                    movie_list = [m for m in movie_list if ('dual audio' in (m.get("genre") or "").lower() or 'dual' in (m.get("title") or "").lower()) and not is_series(m)]
                 else:
-                    movie_list = [m for m in movie_list if g_lower in m.get("genre", "").lower()]
+                    movie_list = [m for m in movie_list if g_lower in (m.get("genre") or "").lower() and not is_series(m)]
 
             return movie_list
         except Exception as e:
@@ -886,67 +904,31 @@ class SupabaseDatabase:
         query: Optional[str] = None,
         genre: Optional[str] = None
     ) -> Dict[str, Any]:
-        """SQL-based pagination that fetches ONLY 30 rows at a time from PostgreSQL."""
-        try:
-            per_page = max(1, per_page)
-            page = max(1, page)
-            start_idx = (page - 1) * per_page
-            end_idx = start_idx + per_page - 1
+        """Returns accurate, deduplicated, and properly categorized paginated movies."""
+        all_matches = self.get_all_movies(status=status, query=query, genre=genre)
+        total_items = len(all_matches)
 
-            q = self.client.table("movies").select("*", count="exact")
+        per_page = max(1, per_page)
+        total_pages = max(1, (total_items + per_page - 1) // per_page)
+        page = max(1, min(page, total_pages))
 
-            if status:
-                q = q.eq("status", status)
-            if query:
-                q = q.or_(f"title.ilike.%{query}%,genre.ilike.%{query}%,cast.ilike.%{query}%")
-            if genre and genre.lower() != 'all':
-                g_lower = genre.strip().lower()
-                if g_lower not in ('series', 'movies', 'bollywood', 'hollywood'):
-                    q = q.ilike("genre", f"%{g_lower}%")
+        start_idx = (page - 1) * per_page
+        end_idx = start_idx + per_page
+        items = all_matches[start_idx:end_idx]
 
-            res = q.order("scraped_at", desc=True).range(start_idx, end_idx).execute()
-            items = res.data or []
-            total_items = res.count or len(items)
+        return {
+            "items": items,
+            "total": total_items,
+            "total_items": total_items,
+            "total_pages": total_pages,
+            "current_page": page,
+            "per_page": per_page,
+            "has_prev": page > 1,
+            "has_next": page < total_pages,
+            "prev_page": page - 1 if page > 1 else None,
+            "next_page": page + 1 if page < total_pages else None
+        }
 
-            for m in items:
-                if not m.get("rating"):
-                    m["rating"] = calculate_real_or_authentic_rating(m)
-
-            total_pages = max(1, (total_items + per_page - 1) // per_page)
-
-            return {
-                "items": items,
-                "total": total_items,
-                "total_items": total_items,
-                "total_pages": total_pages,
-                "current_page": page,
-                "per_page": per_page,
-                "has_prev": page > 1,
-                "has_next": page < total_pages,
-                "prev_page": page - 1 if page > 1 else None,
-                "next_page": page + 1 if page < total_pages else None
-            }
-        except Exception as e:
-            logger.error(f"Supabase get_paginated_movies error: {e}")
-            # Fallback to local filtering if query structure fails
-            all_matches = self.get_all_movies(status=status, query=query, genre=genre)
-            total_items = len(all_matches)
-            total_pages = max(1, (total_items + per_page - 1) // per_page)
-            page = max(1, min(page, total_pages))
-            start_idx = (page - 1) * per_page
-            end_idx = start_idx + per_page
-            return {
-                "items": all_matches[start_idx:end_idx],
-                "total": total_items,
-                "total_items": total_items,
-                "total_pages": total_pages,
-                "current_page": page,
-                "per_page": per_page,
-                "has_prev": page > 1,
-                "has_next": page < total_pages,
-                "prev_page": page - 1 if page > 1 else None,
-                "next_page": page + 1 if page < total_pages else None
-            }
 
     def save_movie(self, movie: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Upsert movie to Supabase PostgreSQL."""

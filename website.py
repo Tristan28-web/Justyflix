@@ -329,7 +329,7 @@ def home():
     elif nav == 'downloads':
         effective_status = 'available'
     elif view == 'latest_movies':
-        effective_genre = 'Movie'
+        effective_genre = 'movies'
 
     pagination = db.get_paginated_movies(
         page=page,

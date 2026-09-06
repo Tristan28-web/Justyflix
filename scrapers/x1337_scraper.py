@@ -143,7 +143,7 @@ class X1337Scraper(BaseScraper):
                 "preview_url": "",
                 "type": "magnet",
                 "file_id": "",
-                "label": f"Magnet Download {quality} (1337x P2P Direct)",
+                "label": f"Magnet Link {quality} (P2P Free)",
                 "quality": quality,
                 "size": "",
                 "source_site": "1337x"

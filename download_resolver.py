@@ -137,7 +137,7 @@ def resolve_movie_direct_download(
 
     logger.info(f"Resolving direct download for {source_url} ({target_quality})")
 
-    # If URL is a P2P magnet link, re-engineer it to a Direct High-Speed HTTP Download URL
+    # If URL is a P2P magnet link, resolve via multi-source direct CDN or return clean magnet link
     if (fallback_url and fallback_url.startswith('magnet:')) or (source_url and source_url.startswith('magnet:')):
         mag_url = fallback_url if (fallback_url and fallback_url.startswith('magnet:')) else source_url
         
@@ -161,21 +161,19 @@ def resolve_movie_direct_download(
                             f_id = l.get('file_id', '')
                             resolved = resolve_movie_direct_download(src_url, target_quality=target_quality, fallback_url=fb_url, file_id=f_id)
                             if resolved.get('success') and resolved.get('download_url') and not resolved.get('download_url').startswith('magnet:'):
-                                resolved['source'] = f"1337x Direct High-Speed Cloud CDN (Matched via {m.get('source_site', 'Multi-Source')})"
+                                resolved['source'] = f"Direct High-Speed Cloud CDN (Matched via {m.get('source_site', 'Multi-Source')})"
                                 download_cache.set(cache_key, resolved, ttl=1800)
                                 return resolved
         except Exception as ex_m:
             logger.warning(f"1337x magnet cross-source lookup exception: {ex_m}")
 
-        # 2. Cloud Torrent-to-HTTP Gateway (High-speed Web Seed HTTP Stream)
-        encoded_mag = urllib.parse.quote(mag_url)
-        direct_http_gateway = f"https://webtor.io/show?magnet={encoded_mag}"
+        # 2. Return clean magnet link (NEVER redirect to third-party paid/paywalled gateways like webtor.io)
         res = {
             "success": True,
-            "download_url": direct_http_gateway,
-            "filename": f"movie_{target_quality}.mkv",
+            "download_url": mag_url,
+            "filename": f"movie_{target_quality}.torrent",
             "quality": target_quality,
-            "source": "1337x High-Speed HTTP Web Seed Gateway",
+            "source": "1337x P2P Magnet Link",
             "error": None
         }
         download_cache.set(cache_key, res, ttl=1800)

@@ -117,6 +117,23 @@
 
         <!-- Download Buttons -->
         <div class="d-flex gap-2 align-items-center flex-wrap">
+          {% if link.type == 'magnet' or (link.url and link.url.startswith('magnet:')) %}
+          <a
+            href="{{ link.url }}"
+            class="btn btn-outline-danger fw-bold text-white py-2 px-3 d-inline-flex align-items-center gap-2"
+            title="Open Magnet Link (100% Free P2P)"
+          >
+            <i class="bi bi-magnet-fill"></i> Magnet Link (P2P Free)
+          </a>
+          <button
+            type="button"
+            class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
+            data-link="{{ link.url }}"
+            title="Copy Magnet Link"
+          >
+            <i class="bi bi-clipboard me-1"></i> Copy Magnet
+          </button>
+          {% else %}
           <a
             href="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0) }}"
             class="btn-gdrive-direct js-download-btn"
@@ -125,16 +142,17 @@
             data-quality="{{ link.quality or 'HD' }}"
             download
           >
-            <i class="bi bi-download"></i> Download {{ link.quality or '' }}
+            <i class="bi bi-download"></i> Direct Download {{ link.quality or '' }}
           </a>
           <button
             type="button"
             class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
             data-link="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0, _external=True) }}"
-            title="Copy Link"
+            title="Copy Direct Link"
           >
             <i class="bi bi-clipboard"></i>
           </button>
+          {% endif %}
         </div>
       </div>
       {% endfor %}

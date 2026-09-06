@@ -560,8 +560,8 @@ def download_movie(movie_id, link_idx):
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
 
-    # Instantly redirect all CDN / R2 / Drive storage URLs directly to browser download manager (0.1s response, zero tab loading hang)
-    if r2_url.startswith('http') or r2_url.startswith('/') or r2_url.startswith('magnet:'):
+    # Direct redirect for presigned S3 / R2 / GDrive / Magnet links; proxy stream for PixelDrain to prevent hotlink detection
+    if ('pixeldrain.com' not in r2_url) and (r2_url.startswith('http') or r2_url.startswith('/') or r2_url.startswith('magnet:')):
         return redirect(r2_url, code=302)
     genre_str = str(movie.get('genre', '')).lower()
     desc_str = str(movie.get('description', '')).lower()

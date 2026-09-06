@@ -734,6 +734,8 @@ def stream_mkv_with_auto_audio(
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
     }
+    if 'pixeldrain.com' in r2_url:
+        headers['Referer'] = 'https://pixeldrain.com/'
     if range_header:
         headers['Range'] = range_header
 

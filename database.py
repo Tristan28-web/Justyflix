@@ -606,6 +606,29 @@ class JSONDatabase:
                     ]
             return m
 
+    def ensure_seeded(self) -> None:
+        """Ensures persistent database contains the complete seed catalog."""
+        with _db_lock:
+            try:
+                data = self._read_data()
+                movies = data.get("movies", {})
+                if len(movies) >= 500:
+                    return
+
+                seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'movies.json'))
+                if os.path.exists(seed_path) and os.path.abspath(self.db_path) != seed_path:
+                    with open(seed_path, 'r', encoding='utf-8') as sf:
+                        seed_data = json.load(sf)
+                    seed_movies = seed_data.get('movies', {})
+                    for m_id, m_data in seed_movies.items():
+                        if m_id not in movies:
+                            movies[m_id] = m_data
+                    data['movies'] = movies
+                    self._atomic_write(data)
+                    logger.info(f"ensure_seeded: Populated persistent database at {self.db_path} to {len(movies)} movies.")
+            except Exception as e:
+                logger.warning(f"ensure_seeded exception: {e}")
+
     def get_all_movies(
         self,
         status: Optional[str] = None,
@@ -618,6 +641,9 @@ class JSONDatabase:
         """
         with _db_lock:
             data = self._read_data()
+            if len(data.get("movies", {})) < 500:
+                self.ensure_seeded()
+                data = self._read_data()
             movie_list = list(data["movies"].values())
 
             for m in movie_list:

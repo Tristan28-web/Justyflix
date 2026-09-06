@@ -118,18 +118,10 @@ def _start_resolution_job(movie_id: str, link_idx: int, source_url: str, quality
                 target_quality=quality,
                 fallback_url=fallback_url,
                 file_id=file_id,
-                timeout=20   # more generous timeout since there's no HTTP request limit
+                timeout=15
             )
-            if not res.get("success") or not res.get("download_url"):
-                res = resolve_movie_direct_download(
-                    source_url=source_url,
-                    target_quality=quality,
-                    fallback_url=fallback_url,
-                    file_id=file_id,
-                    timeout=20,
-                    force_refresh=True
-                )
             if res.get("success") and res.get("download_url"):
+
                 try:
                     movie = db.get_movie(movie_id)
                     if movie and movie.get("download_links"):

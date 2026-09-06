@@ -435,7 +435,7 @@ def resolve_movie_direct_download(
         # Step 7: Resolve candidate link to Cloudflare R2
         for cand_url in candidate_urls:
             try:
-                cand_timeout = 2.5
+                cand_timeout = 4.0
                 req7a = urllib.request.Request(cand_url, headers={**HEADERS, 'Referer': links_page_url})
                 html7a = urllib.request.urlopen(req7a, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
                 soup7a = BeautifulSoup(html7a, 'html.parser')
@@ -503,6 +503,21 @@ def resolve_movie_direct_download(
                 r2_candidate = None
                 if 'r2.cloudflarestorage.com' in boa_url:
                     r2_candidate = boa_url
+                elif 'cdn.cdn-hub.xyz' in boa_url or 'cdn-hub.xyz' in boa_url:
+                    # cdn-hub.xyz IS a direct CDN URL — return it directly; never try to download/read it
+                    fn_m = re.search(r'filename%3D%22([^%"]+)%22', boa_url) or re.search(r'filename=([^&"]+)', boa_url)
+                    cdn_filename = urllib.parse.unquote(fn_m.group(1)) if fn_m else f"Movie_{target_quality}.mkv"
+                    res = {
+                        "success": True,
+                        "download_url": boa_url,
+                        "filename": cdn_filename,
+                        "quality": target_quality,
+                        "source": "Cloudflare CDN",
+                        "error": None
+                    }
+                    download_cache.set(cache_key, res, ttl=3600)
+                    logger.info(f"Resolved cdn-hub.xyz direct CDN URL for {target_quality}: {boa_url[:80]}...")
+                    return res
                 elif boa_url.startswith('http'):
                     target_fetch_url = boa_url.replace('/url?', '/embed?') if '/url?' in boa_url else boa_url
                     req7e = urllib.request.Request(
@@ -515,7 +530,7 @@ def resolve_movie_direct_download(
                             'Content-Type': 'application/x-www-form-urlencoded'
                         }
                     )
-                    html7e = urllib.request.urlopen(req7e, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
+                    html7e = urllib.request.urlopen(req7e, timeout=cand_timeout).read(65536).decode('utf-8', errors='ignore')
                     r2_m = re.search(r'https?://[^\s\'"]*r2\.cloudflarestorage\.com[^\s\'"]*', html7e)
                     if r2_m:
                         r2_candidate = r2_m.group(0)

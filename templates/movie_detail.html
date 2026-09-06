@@ -253,10 +253,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (elapsed >= MAX_WAIT) {
           clearInterval(pollTimer);
-          console.warn('Resolution timed out after', MAX_WAIT, 's — attempting direct download fallback');
-          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Connecting…`;
-          window.location.href = `/download/${movieId}/${linkIdx}`;
-          setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
+          console.warn('Resolution timed out after', MAX_WAIT, 's');
+          btn.innerHTML = `<i class="bi bi-arrow-clockwise me-2"></i> Timeout — Click to retry`;
+          btn.disabled = false;
+          btn.style.pointerEvents = 'auto';
+          setTimeout(() => { btn.innerHTML = originalHtml; }, 4000);
           return;
         }
 
@@ -281,11 +282,13 @@ document.addEventListener('DOMContentLoaded', function() {
           } else if (statusData.status === 'failed') {
             clearInterval(pollTimer);
             console.warn('Resolution failed:', statusData.error);
-            btn.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-2"></i> Retrying stream…`;
-            window.location.href = `/download/${movieId}/${linkIdx}`;
-            setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
+            btn.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-2"></i> Busy — Click to retry`;
+            btn.disabled = false;
+            btn.style.pointerEvents = 'auto';
+            setTimeout(() => { btn.innerHTML = originalHtml; }, 4000);
 
           }
+
 
           // else status === 'pending' → keep polling
         } catch (pollErr) {

@@ -470,7 +470,7 @@ def api_direct_stream(infohash):
 
         fn = f"Movie_{infohash[:8]}.mkv"
         if b'name' in torrent_bytes:
-            m_fn = re.search(r'4:name(\d+):', torrent_bytes)
+            m_fn = re.search(rb'4:name(\d+):', torrent_bytes)
             if m_fn:
                 l = int(m_fn.group(1))
                 p = m_fn.end()
@@ -484,8 +484,8 @@ def api_direct_stream(infohash):
         resp.headers['Cache-Control'] = 'no-transform, public, max-age=86400'
         return resp
     except Exception as ex:
-        logger.error(f"Direct stream error for infohash {infohash}: {ex}")
-        abort(404)
+        logger.warning(f"Direct stream error for infohash {infohash}: {ex}. Launching magnet link fallback...")
+        return redirect(f"magnet:?xt=urn:btih:{infohash}")
 
 
 @app.route('/movie/<movie_id>')
@@ -557,9 +557,10 @@ def download_movie(movie_id, link_idx):
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
 
-    # Redirect external drive links or direct file links if applicable
-    if 'drive.google.com' in r2_url or ('r2.cloudflarestorage.com' not in r2_url and r2_url.startswith(('http://', 'https://'))):
+    # Redirect relative stream routes, magnet links, or external drive/CDN links directly
+    if r2_url.startswith('/') or r2_url.startswith('magnet:') or 'drive.google.com' in r2_url or ('r2.cloudflarestorage.com' not in r2_url and r2_url.startswith(('http://', 'https://'))):
         return redirect(r2_url)
+    genre_str = str(movie.get('genre', '')).lower()
     desc_str = str(movie.get('description', '')).lower()
     is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
         k in desc_str or k in genre_str for k in ['dual audio', 'hollywood', 'english', '[hindi org & eng]', 'eng & hindi']

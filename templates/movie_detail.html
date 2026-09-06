@@ -148,25 +148,16 @@
             <i class="bi bi-clipboard me-1"></i> Copy Magnet
           </button>
           {% else %}
-          {% if link.resolved_r2_url and link.resolved_r2_url.startswith('http') %}
           <a
             href="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0) }}"
-            class="btn-gdrive-direct d-inline-flex align-items-center gap-2"
+            class="btn-gdrive-direct js-download-btn d-inline-flex align-items-center gap-2"
+            data-movie-id="{{ movie.id }}"
+            data-link-idx="{{ loop.index0 }}"
+            data-quality="{{ link.quality or 'HD' }}"
             style="text-decoration: none;"
           >
             <i class="bi bi-cloud-arrow-down-fill"></i> Direct Cloud Download {{ link.quality or '' }}
           </a>
-          {% else %}
-          <button
-            type="button"
-            class="btn-gdrive-direct js-download-btn"
-            data-movie-id="{{ movie.id }}"
-            data-link-idx="{{ loop.index0 }}"
-            data-quality="{{ link.quality or 'HD' }}"
-          >
-            <i class="bi bi-download"></i> Direct Cloud Download {{ link.quality or '' }}
-          </button>
-          {% endif %}
           <button
             type="button"
             class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
@@ -269,14 +260,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (elapsed >= MAX_WAIT) {
           clearInterval(pollTimer);
-          console.warn('Resolution timed out after', MAX_WAIT, 's');
-          btn.innerHTML = `<i class="bi bi-arrow-clockwise me-2"></i> Timeout — Click to retry`;
-          btn.disabled = false;
-          btn.style.pointerEvents = 'auto';
-          setTimeout(() => { btn.innerHTML = originalHtml; }, 4000);
+          console.warn('Resolution timed out after', MAX_WAIT, 's. Falling back to server route.');
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Direct fallback…`;
+          window.location.href = `/download/${movieId}/${linkIdx}`;
+          setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
           return;
         }
-
 
         try {
           const statusResp = await fetch(`/api/resolve-status/${jobId}`);
@@ -297,12 +286,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
           } else if (statusData.status === 'failed') {
             clearInterval(pollTimer);
-            console.warn('Resolution failed:', statusData.error);
-            btn.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-2"></i> Busy — Click to retry`;
-            btn.disabled = false;
-            btn.style.pointerEvents = 'auto';
-            setTimeout(() => { btn.innerHTML = originalHtml; }, 4000);
-
+            console.warn('Resolution failed, falling back to direct server route:', statusData.error);
+            btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Direct fallback…`;
+            window.location.href = `/download/${movieId}/${linkIdx}`;
+            setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
           }
 
 

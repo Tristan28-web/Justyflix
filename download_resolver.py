@@ -509,12 +509,57 @@ def resolve_movie_direct_download(
                 )
                 boa_url = urllib.request.urlopen(req7d, timeout=cand_timeout).read().decode('utf-8').strip()
 
+                if 'cdn-hub.xyz' in boa_url or 'cdn.cdn-hub' in boa_url:
+                    embed_url = boa_url.replace('/url', '/embed')
+                    logger.info(f"Candidate yielded cdn-hub URL. Resolving direct stream: {embed_url}")
+
+                    # Extract authentic filename from HTML if possible
+                    fname = f"Movie_{target_quality}.mkv"
+                    try:
+                        req_p = urllib.request.Request(boa_url, headers=HEADERS)
+                        h_p = urllib.request.urlopen(req_p, timeout=3.5).read(8192).decode('utf-8', errors='ignore')
+                        t_m = re.search(r'<title>([^<|]+)', h_p)
+                        if t_m:
+                            extracted_t = t_m.group(1).strip()
+                            if '.' in extracted_t and len(extracted_t) > 4:
+                                fname = extracted_t
+                    except Exception:
+                        pass
+
+                    # Verify embed_url redirects to active Google Cloud CDN
+                    class _NoRedirect(urllib.request.HTTPRedirectHandler):
+                        def redirect_request(self, req, fp, code, msg, headers, newurl):
+                            return None
+
+                    direct_stream_url = embed_url
+                    try:
+                        opener = urllib.request.build_opener(_NoRedirect)
+                        req_emb = urllib.request.Request(embed_url, headers={**HEADERS, 'Referer': boa_url})
+                        try:
+                            opener.open(req_emb, timeout=cand_timeout)
+                        except urllib.error.HTTPError as he:
+                            if he.code in (301, 302, 303, 307, 308) and he.headers.get('Location'):
+                                direct_stream_url = he.headers.get('Location')
+                    except Exception as emb_ex:
+                        logger.warning(f"cdn-hub redirect check exception: {emb_ex}")
+
+                    final_dl_url = direct_stream_url if (direct_stream_url and 'video-downloads.googleusercontent.com' in direct_stream_url) else (direct_stream_url or embed_url)
+                    res = {
+                        "success": True,
+                        "download_url": final_dl_url,
+                        "direct_stream_url": final_dl_url,
+                        "filename": fname,
+                        "quality": target_quality,
+                        "source": "Google Cloud Direct Storage",
+                        "error": None
+                    }
+                    download_cache.set(cache_key, res, ttl=3600)
+                    logger.info(f"Successfully resolved verified Google Cloud Direct CDN for {target_quality}: {fname}")
+                    return res
+
                 r2_candidate = None
                 if 'r2.cloudflarestorage.com' in boa_url:
                     r2_candidate = boa_url
-                elif 'cdn-hub.xyz' in boa_url or 'cdn.cdn-hub' in boa_url:
-                    logger.warning(f"Candidate yielded landing page {boa_url[:60]}... skipping to next candidate.")
-                    continue
                 elif boa_url.startswith('http'):
                     req7e = urllib.request.Request(
                         boa_url,
@@ -576,6 +621,21 @@ def resolve_movie_direct_download(
             except Exception as cand_ex:
                 logger.warning(f"Candidate URL resolution failed for {cand_url}: {cand_ex}")
                 continue
+
+        # Check candidate_items for any direct mirror fallback before raising
+        for lbl, h in candidate_items:
+            if any(k in h for k in ['drive.google.com', 'pixeldrain.com', 'mega.nz', 'transfer.it', '1fichier.com']):
+                res = {
+                    "success": True,
+                    "download_url": h,
+                    "filename": f"movie_{target_quality}.mkv",
+                    "quality": target_quality,
+                    "source": f"Cloud Mirror ({lbl})",
+                    "error": None
+                }
+                download_cache.set(cache_key, res, ttl=1800)
+                logger.info(f"Resolved direct mirror candidate fallback ({lbl}): {h}")
+                return res
 
         raise Exception("Direct R2 CDN link not active or not generated on storage server.")
 

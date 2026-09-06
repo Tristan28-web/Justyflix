@@ -247,6 +247,18 @@
 
   <!-- Main Content Block -->
   <main class="flex-grow-1">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="container mt-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show bg-dark border-{{ category if category != 'error' else 'danger' }} text-light" role="alert">
+              <i class="bi bi-info-circle me-2 text-warning"></i>{{ message }}
+              <button type="button" class="btn-close btn-close-white" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
     {% block content %}{% endblock %}
   </main>
 

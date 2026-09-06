@@ -3,7 +3,7 @@ import re
 import threading
 from datetime import datetime
 from typing import Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context, send_from_directory, flash
 from flask_cors import CORS
 from config import Config, setup_logger
 from database import db, is_series
@@ -687,7 +687,8 @@ def download_movie(movie_id, link_idx):
             fallback_target = target_link.get('url') or ''
             if fallback_target and (fallback_target.startswith('magnet:') or (fallback_target.startswith('http') and 'blog.php' not in fallback_target and 'fojik' not in fallback_target)):
                 return redirect(fallback_target, code=302)
-            # NEVER redirect to fojik.site — always keep user on Justyflix movie page
+            # NEVER redirect to fojik.site — always keep user on Justyflix movie page with informative alert
+            flash(f"Direct cloud mirror for {quality} is temporarily updating or busy. Please try another quality or retry shortly.", "warning")
             return redirect(url_for('movie_detail', movie_id=movie_id))
 
         r2_url = res['download_url']

@@ -83,7 +83,8 @@ def is_placeholder_description(desc: Optional[str]) -> bool:
         '1337x', 'magnet link', 'high-speed release', 'verified magnet',
         'p2p free', 'download direct', 'full movie download', 'full movie details',
         'fast downloads', 'instant ready', 'seeders', 'torrent', 'download link',
-        'direct link', 'vegamovies', 'bolly4u', 'mwlbd', 'fojik'
+        'direct link', 'vegamovies', 'bolly4u', 'mwlbd', 'fojik',
+        'directed by acclaimed', 'an intense', 'screenshots', 'available for direct download'
     ]
     return any(bad in desc_l for bad in bad_tokens)
 
@@ -253,7 +254,19 @@ def enrich_movie_record(movie: Dict[str, Any]) -> Dict[str, Any]:
         movie['title'] = clean_t
         cur_title = clean_t
 
-    needs_dir = not cur_dir or cur_dir.lower() in ('unknown', 'n/a', 'none', 'acclaimed director')
+    # Clean trailing 'Director' string accidentally scraped
+    if cur_dir.endswith('Director') and cur_dir.lower() not in ('director', 'acclaimed director'):
+        cur_dir = cur_dir[:-8].strip()
+        movie['director'] = cur_dir
+
+    # Fix concatenated cast strings (e.g. 'Alan RitchsonDennis QuaidStephan James')
+    if re.search(r'[a-z][A-Z]', cur_cast) and ',' not in cur_cast:
+        cleaned_cast = re.sub(r'([a-z])([A-Z])', r'\1, \2', cur_cast)
+        cleaned_cast = re.sub(r'\d+', '', cleaned_cast).strip(' ,')
+        movie['cast'] = cleaned_cast
+        cur_cast = cleaned_cast
+
+    needs_dir = not cur_dir or cur_dir.lower() in ('unknown', 'n/a', 'none', 'acclaimed director', 'director', 'acclaimed')
     needs_cast = not cur_cast or cur_cast.lower() in ('unknown', 'n/a', 'none', 'ensemble cast')
     needs_desc = is_placeholder_description(cur_desc)
 
@@ -264,7 +277,7 @@ def enrich_movie_record(movie: Dict[str, Any]) -> Dict[str, Any]:
             current_genre=movie.get('genre', ''),
             current_desc=cur_desc
         )
-        if meta.get('director') and (needs_dir or meta['director'].lower() != 'acclaimed director'):
+        if meta.get('director') and (needs_dir or meta['director'].lower() not in ('acclaimed director', 'director')):
             movie['director'] = meta['director']
         if meta.get('cast') and (needs_cast or meta['cast'].lower() != 'ensemble cast'):
             movie['cast'] = meta['cast']

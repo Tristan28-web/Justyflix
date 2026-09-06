@@ -652,29 +652,6 @@ def download_movie(movie_id, link_idx):
                     logger.info(f"Serving pre-resolved R2 CDN link directly for {movie_id} [{quality}]")
                     return redirect(cached_r2, code=302)
 
-        # ── FAST PATH ────────────────────────────────────────────────────────
-        # If ALL download links are blog.php shortlinks (MWLBD/fojik format),
-        # the multi-step resolver chain will time out on Render's US servers
-        # (geo-blocked PHP shortlinker sites). Skip resolver entirely and send
-        # the user straight to the original source page so they can download
-        # directly. This prevents Render's 30-second hard request timeout.
-        all_blog_php = all(
-            'blog.php' in str(lnk.get('url', '')) or 'blog.php' in str(lnk.get('original_url', ''))
-            for lnk in links
-        )
-        has_direct_links = any(
-            any(k in str(lnk.get('url', '')) for k in ['pixeldrain.com', 'r2.cloudflarestorage.com', 'drive.google.com', 'mega.nz'])
-            for lnk in links
-        )
-
-        if all_blog_php and not has_direct_links and not cached_r2:
-            logger.info(f"Fast-path: all links are blog.php for {movie_id}. Redirecting to source page.")
-            source_page = movie.get('source_url') or ''
-            if source_page and source_page.startswith('http'):
-                return redirect(source_page, code=302)
-            return redirect(url_for('movie_detail', movie_id=movie_id))
-        # ─────────────────────────────────────────────────────────────────────
-
         try:
             res = resolve_movie_direct_download(
                 source_url=source_url,
@@ -701,17 +678,24 @@ def download_movie(movie_id, link_idx):
                 res = {'success': False, 'download_url': None}
 
         if not res.get('success') or not res.get('download_url'):
-            logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Utilizing safe source fallback.")
+            logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Keeping user on site.")
             fallback_target = target_link.get('url') or ''
-            source_page = movie.get('source_url') or ''
-            if fallback_target and (fallback_target.startswith('magnet:') or (fallback_target.startswith('http') and 'blog.php' not in fallback_target)):
+            if fallback_target and (fallback_target.startswith('magnet:') or (fallback_target.startswith('http') and 'blog.php' not in fallback_target and 'fojik' not in fallback_target)):
                 return redirect(fallback_target, code=302)
-            if source_page and source_page.startswith('http'):
-                return redirect(source_page, code=302)
+            # NEVER redirect to fojik.site — always keep user on Justyflix movie page
             return redirect(url_for('movie_detail', movie_id=movie_id))
 
         r2_url = res['download_url']
         filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
+
+        # Cache the resolved URL into database for 0ms instant future downloads
+        try:
+            links[link_idx]['resolved_r2_url'] = r2_url
+            links[link_idx]['resolved_at'] = _time.time()
+            if hasattr(db, 'update_movie_download_links'):
+                db.update_movie_download_links(movie_id, links)
+        except Exception as cache_err:
+            logger.warning(f"Could not save resolved_r2_url to DB: {cache_err}")
 
         # Direct redirect for presigned S3/R2/GDrive/Magnet links
         # Proxy-stream only PixelDrain links to bypass hotlink detection
@@ -797,25 +781,7 @@ def api_resolve_download(movie_id, link_idx):
         fallback_url = target_link.get('url') or target_link.get('original_url', '')
         file_id = target_link.get('file_id', '')
 
-        # Fast-path: if ALL links are blog.php shortlinks, skip resolver and return source page
-        all_blog_php = all(
-            'blog.php' in str(lnk.get('url', '')) or 'blog.php' in str(lnk.get('original_url', ''))
-            for lnk in links
-        )
-        has_direct_links = any(
-            any(k in str(lnk.get('url', '')) for k in ['pixeldrain.com', 'r2.cloudflarestorage.com', 'drive.google.com', 'mega.nz'])
-            for lnk in links
-        )
-        if all_blog_php and not has_direct_links:
-            source_page = movie.get('source_url') or ''
-            return jsonify({
-                "status": "success",
-                "download_url": source_page or url_for('movie_detail', movie_id=movie_id),
-                "direct_cdn_url": source_page,
-                "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
-                "quality": quality,
-                "source": "Source Page (fojik.site)"
-            }), 200
+        # Resolve direct download using the resolver engine
 
         try:
             res = resolve_movie_direct_download(

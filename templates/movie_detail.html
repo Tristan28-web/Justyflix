@@ -239,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
       // ── Step 2: Poll resolve-status every 1.5 seconds ──────────────────
       let elapsed = 0;
-      const MAX_WAIT = 12; // 12 seconds max wait time
+      const MAX_WAIT = 35; // 35 seconds to allow full 7-step token chain to finish
       const POLL_INTERVAL = 1500;
 
       const updateLabel = () => {
@@ -253,8 +253,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (elapsed >= MAX_WAIT) {
           clearInterval(pollTimer);
-          console.warn('Resolution timed out after', MAX_WAIT, 's — redirecting to source fallback');
-          btn.innerHTML = `<i class="bi bi-cloud-download me-2"></i> Opening download page…`;
+          console.warn('Resolution timed out after', MAX_WAIT, 's — attempting direct download fallback');
+          btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Connecting…`;
           window.location.href = `/download/${movieId}/${linkIdx}`;
           setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
           return;
@@ -281,11 +281,12 @@ document.addEventListener('DOMContentLoaded', function() {
           } else if (statusData.status === 'failed') {
             clearInterval(pollTimer);
             console.warn('Resolution failed:', statusData.error);
-            btn.innerHTML = `<i class="bi bi-cloud-download me-2"></i> Trying source…`;
+            btn.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-2"></i> Retrying stream…`;
             window.location.href = `/download/${movieId}/${linkIdx}`;
             setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
 
           }
+
           // else status === 'pending' → keep polling
         } catch (pollErr) {
           console.warn('Poll error:', pollErr);

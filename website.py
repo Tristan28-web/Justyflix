@@ -519,95 +519,117 @@ def download_movie(movie_id, link_idx):
     - Hindi is the default audio track for Bollywood releases.
     Directly downloaded to the user's PC with zero manual player configuration.
     """
-    movie = db.get_movie(movie_id)
-    if not movie:
-        abort(404)
-
-    links = movie.get('download_links', [])
-    if not links or link_idx < 0 or link_idx >= len(links):
-        return redirect(url_for('movie_detail', movie_id=movie_id))
-
-    target_link = links[link_idx]
-    quality = target_link.get('quality') or target_link.get('label') or '1080p'
-    source_url = movie.get('source_url') or target_link.get('url', '')
-    fallback_url = target_link.get('url') or target_link.get('original_url', '')
-    file_id = target_link.get('file_id', '')
-
-    res = resolve_movie_direct_download(
-        source_url=source_url,
-        target_quality=quality,
-        fallback_url=fallback_url,
-        file_id=file_id
-    )
-
-    if not res.get('success') or not res.get('download_url'):
-        # Attempt one forced refresh before giving up
-        res = resolve_movie_direct_download(
-            source_url=source_url,
-            target_quality=quality,
-            fallback_url=fallback_url,
-            file_id=file_id,
-            force_refresh=True
-        )
-
-    if not res.get('success') or not res.get('download_url'):
-        logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Utilizing safe source fallback.")
-        fallback_target = target_link.get('url') or movie.get('source_url') or ''
-        if fallback_target and fallback_target.startswith('http') and 'blog.php' not in fallback_target:
-            return redirect(fallback_target, code=302)
-        return redirect(url_for('movie_detail', movie_id=movie_id))
-
-    r2_url = res['download_url']
-    filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
-
-    # Direct redirect for presigned S3 / R2 / GDrive / Magnet links; proxy stream for PixelDrain to prevent hotlink detection
-    if ('pixeldrain.com' not in r2_url) and (r2_url.startswith('http') or r2_url.startswith('/') or r2_url.startswith('magnet:')):
-        return redirect(r2_url, code=302)
-    genre_str = str(movie.get('genre', '')).lower()
-    desc_str = str(movie.get('description', '')).lower()
-    is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
-        k in desc_str or k in genre_str for k in ['dual audio', 'hollywood', 'english', '[hindi org & eng]', 'eng & hindi']
-    )
-
     try:
-        range_header = request.headers.get('Range')
-        gen, status, resp_hdrs = stream_mkv_with_auto_audio(
-            r2_url=r2_url,
-            is_bollywood=is_bollywood,
-            range_header=range_header
-        )
-        resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
-        return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
-    except Exception as ex:
-        logger.warning(f"Streaming auto-audio failed ({ex}). Evicting cache and attempting fresh re-resolution...")
-        cache_key = f"{source_url}:{quality}:{file_id}"
-        download_cache.delete(cache_key)
+        movie = db.get_movie(movie_id)
+        if not movie:
+            abort(404)
 
-        fresh_res = resolve_movie_direct_download(
-            source_url=source_url,
-            target_quality=quality,
-            fallback_url=fallback_url,
-            file_id=file_id,
-            force_refresh=True
-        )
-        if fresh_res.get('success') and fresh_res.get('download_url'):
-            fresh_url = fresh_res['download_url']
+        links = movie.get('download_links', [])
+        if not links or link_idx < 0 or link_idx >= len(links):
+            return redirect(url_for('movie_detail', movie_id=movie_id))
+
+        target_link = links[link_idx]
+        quality = target_link.get('quality') or target_link.get('label') or '1080p'
+        source_url = movie.get('source_url') or target_link.get('url', '')
+        fallback_url = target_link.get('url') or target_link.get('original_url', '')
+        file_id = target_link.get('file_id', '')
+
+        try:
+            res = resolve_movie_direct_download(
+                source_url=source_url,
+                target_quality=quality,
+                fallback_url=fallback_url,
+                file_id=file_id
+            )
+        except Exception as resolve_err:
+            logger.warning(f"resolve_movie_direct_download raised: {resolve_err}. Forcing fallback.")
+            res = {'success': False, 'download_url': None}
+
+        if not res.get('success') or not res.get('download_url'):
+            # Attempt one forced refresh before giving up
             try:
-                gen, status, resp_hdrs = stream_mkv_with_auto_audio(
-                    r2_url=fresh_url,
-                    is_bollywood=is_bollywood,
-                    range_header=request.headers.get('Range')
+                res = resolve_movie_direct_download(
+                    source_url=source_url,
+                    target_quality=quality,
+                    fallback_url=fallback_url,
+                    file_id=file_id,
+                    force_refresh=True
                 )
-                resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
-                return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
-            except Exception as ex2:
-                logger.warning(f"Fresh stream retry failed ({ex2}). Checking direct R2 before redirect...")
-                if verify_r2_url(fresh_url, timeout=3.0):
-                    return redirect(fresh_url, code=302)
+            except Exception as resolve_err2:
+                logger.warning(f"resolve_movie_direct_download (force_refresh) raised: {resolve_err2}.")
+                res = {'success': False, 'download_url': None}
 
-        # NEVER redirect to an expired or unverified URL!
-        logger.error(f"Cannot resolve valid stream for {movie_id}. Returning safely to movie detail page.")
-        return redirect(url_for('movie_detail', movie_id=movie_id))
+        if not res.get('success') or not res.get('download_url'):
+            logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Utilizing safe source fallback.")
+            fallback_target = target_link.get('url') or movie.get('source_url') or ''
+            if fallback_target and fallback_target.startswith('http') and 'blog.php' not in fallback_target:
+                return redirect(fallback_target, code=302)
+            return redirect(url_for('movie_detail', movie_id=movie_id))
+
+        r2_url = res['download_url']
+        filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
+
+        # Direct redirect for presigned S3/R2/GDrive/Magnet links
+        # Proxy-stream only PixelDrain links to bypass hotlink detection
+        if ('pixeldrain.com' not in r2_url) and (r2_url.startswith('http') or r2_url.startswith('/') or r2_url.startswith('magnet:')):
+            return redirect(r2_url, code=302)
+
+        genre_str = str(movie.get('genre', '')).lower()
+        desc_str = str(movie.get('description', '')).lower()
+        is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
+            k in desc_str or k in genre_str for k in ['dual audio', 'hollywood', 'english', '[hindi org & eng]', 'eng & hindi']
+        )
+
+        try:
+            range_header = request.headers.get('Range')
+            gen, status, resp_hdrs = stream_mkv_with_auto_audio(
+                r2_url=r2_url,
+                is_bollywood=is_bollywood,
+                range_header=range_header
+            )
+            resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
+            return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
+        except Exception as ex:
+            logger.warning(f"Streaming auto-audio failed ({ex}). Evicting cache and attempting fresh re-resolution...")
+            cache_key = f"{source_url}:{quality}:{file_id}"
+            download_cache.delete(cache_key)
+
+            try:
+                fresh_res = resolve_movie_direct_download(
+                    source_url=source_url,
+                    target_quality=quality,
+                    fallback_url=fallback_url,
+                    file_id=file_id,
+                    force_refresh=True
+                )
+            except Exception:
+                fresh_res = {'success': False, 'download_url': None}
+
+            if fresh_res.get('success') and fresh_res.get('download_url'):
+                fresh_url = fresh_res['download_url']
+                try:
+                    gen, status, resp_hdrs = stream_mkv_with_auto_audio(
+                        r2_url=fresh_url,
+                        is_bollywood=is_bollywood,
+                        range_header=request.headers.get('Range')
+                    )
+                    resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
+                    return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
+                except Exception as ex2:
+                    logger.warning(f"Fresh stream retry failed ({ex2}). Checking direct R2 before redirect...")
+                    if verify_r2_url(fresh_url, timeout=3.0):
+                        return redirect(fresh_url, code=302)
+
+            logger.error(f"Cannot resolve valid stream for {movie_id}. Returning safely to movie detail page.")
+            return redirect(url_for('movie_detail', movie_id=movie_id))
+
+    except Exception as fatal_err:
+        logger.error(f"Fatal error in download_movie for {movie_id}: {fatal_err}", exc_info=True)
+        # Never expose HTTP 500 to the user — redirect gracefully to movie detail
+        try:
+            return redirect(url_for('movie_detail', movie_id=movie_id))
+        except Exception:
+            return redirect('/')
 
 
 @app.route('/api/resolve-download/<movie_id>/<int:link_idx>', methods=['GET'])

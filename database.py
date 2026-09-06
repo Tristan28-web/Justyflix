@@ -576,16 +576,29 @@ class JSONDatabase:
                     return
 
                 seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'movies.json'))
-                if os.path.exists(seed_path) and os.path.abspath(self.db_path) != seed_path:
-                    with open(seed_path, 'r', encoding='utf-8') as sf:
-                        seed_data = json.load(sf)
-                    seed_movies = seed_data.get('movies', {})
-                    for m_id, m_data in seed_movies.items():
-                        if m_id not in movies:
-                            movies[m_id] = m_data
-                    data['movies'] = movies
-                    self._atomic_write(data)
-                    logger.info(f"ensure_seeded: Populated persistent database at {self.db_path} to {len(movies)} movies.")
+                if not os.path.exists(seed_path) or os.path.abspath(self.db_path) == seed_path:
+                    logger.warning(f"ensure_seeded: Seed file not found or same as db_path — skipping.")
+                    return
+
+                with open(seed_path, 'r', encoding='utf-8') as sf:
+                    seed_data = json.load(sf)
+                seed_movies = seed_data.get('movies', {})
+                for m_id, m_data in seed_movies.items():
+                    if m_id not in movies:
+                        movies[m_id] = m_data
+                data['movies'] = movies
+
+                # Ensure the /data directory exists on the persistent disk
+                db_dir = os.path.dirname(self.db_path)
+                if db_dir:
+                    os.makedirs(db_dir, exist_ok=True)
+
+                # Write seed directly (no tmp-rename) — safe because file doesn't exist yet
+                # The atomic rename approach fails on Render persistent disk first-boot
+                with open(self.db_path, 'w', encoding='utf-8') as f:
+                    json.dump(data, f, indent=2, ensure_ascii=False)
+
+                logger.info(f"ensure_seeded: Populated persistent database at {self.db_path} with {len(movies)} movies.")
             except Exception as e:
                 logger.warning(f"ensure_seeded exception: {e}")
 

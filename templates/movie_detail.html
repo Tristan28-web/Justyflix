@@ -109,11 +109,6 @@
             {% if link.quality %}
             <span class="badge bg-danger">{{ link.quality }}</span>
             {% endif %}
-            {% if link.type == 'magnet' or (link.url and link.url.startswith('magnet:')) %}
-            <span class="badge bg-warning text-dark"><i class="bi bi-diagram-3-fill me-1"></i>P2P Torrent Swarm</span>
-            {% else %}
-            <span class="badge bg-success"><i class="bi bi-lightning-charge-fill me-1"></i>⚡ 100 MB/s Direct Cloud</span>
-            {% endif %}
             {% if link.size and link.size != '----' and link.size.strip() %}
             <span class="badge bg-secondary">{{ link.size }}</span>
             {% endif %}

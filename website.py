@@ -102,6 +102,8 @@ def _start_resolution_job(movie_id: str, link_idx: int, source_url: str, quality
         _resolution_jobs[job_id] = {
             "status": "pending",
             "result": None,
+            "movie_id": movie_id,
+            "link_idx": link_idx,
             "expires_at": _time.time() + 300   # keep for 5 minutes
         }
         # Purge expired jobs
@@ -626,8 +628,29 @@ def download_movie(movie_id, link_idx):
         cached_r2 = target_link.get("resolved_r2_url")
         if cached_r2 and (cached_r2.startswith("http") or cached_r2.startswith("magnet:")):
             if is_valid_quality_cached_r2(cached_r2, quality) and verify_r2_url(cached_r2, timeout=2.5):
-                logger.info(f"Serving pre-resolved R2 CDN link directly for {movie_id} [{quality}]")
-                return redirect(cached_r2, code=302)
+                # PixelDrain blocks hotlinks — must proxy-stream; all other CDNs get direct redirect
+                if 'pixeldrain.com' in cached_r2:
+                    logger.info(f"Proxying pre-resolved PixelDrain link for {movie_id} [{quality}]")
+                    filename = f"{movie.get('title', 'Movie')}_{quality}.mkv"
+                    genre_str = str(movie.get('genre', '')).lower()
+                    desc_str = str(movie.get('description', '')).lower()
+                    is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
+                        k in desc_str or k in genre_str for k in ['dual audio', 'hollywood', 'english', '[hindi org & eng]', 'eng & hindi']
+                    )
+                    try:
+                        range_header = request.headers.get('Range')
+                        gen, status, resp_hdrs = stream_mkv_with_auto_audio(
+                            r2_url=cached_r2,
+                            is_bollywood=is_bollywood,
+                            range_header=range_header
+                        )
+                        resp_hdrs['Content-Disposition'] = f'attachment; filename="{filename}"'
+                        return Response(stream_with_context(gen), status=status, headers=resp_hdrs)
+                    except Exception as pd_ex:
+                        logger.warning(f"PixelDrain proxy-stream failed ({pd_ex}). Falling through to resolver.")
+                else:
+                    logger.info(f"Serving pre-resolved R2 CDN link directly for {movie_id} [{quality}]")
+                    return redirect(cached_r2, code=302)
 
         # ── FAST PATH ────────────────────────────────────────────────────────
         # If ALL download links are blog.php shortlinks (MWLBD/fojik format),
@@ -872,6 +895,16 @@ def api_start_resolve(movie_id, link_idx):
         cached_r2 = target_link.get("resolved_r2_url")
         if cached_r2 and (cached_r2.startswith("http") or cached_r2.startswith("magnet:")):
             if is_valid_quality_cached_r2(cached_r2, quality) and verify_r2_url(cached_r2, timeout=2.5):
+                # PixelDrain blocks hotlinks — route through our server proxy endpoint
+                if 'pixeldrain.com' in cached_r2:
+                    proxy_url = url_for('download_movie', movie_id=movie_id, link_idx=link_idx, _external=False)
+                    logger.info(f"Fast-path PixelDrain: returning proxy route {proxy_url} for {movie_id} [{quality}]")
+                    return jsonify({
+                        "status": "instant",
+                        "download_url": proxy_url,
+                        "quality": quality,
+                        "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv"
+                    }), 200
                 logger.info(f"Serving pre-resolved instant R2 CDN download URL for {movie_id} [{quality}]")
                 return jsonify({
                     "status": "instant",
@@ -907,9 +940,16 @@ def api_resolve_status(job_id):
         result = job.get("result") or {}
 
         if job["status"] == "done" and result.get("success") and result.get("download_url"):
+            resolved_url = result["download_url"]
+            # PixelDrain blocks hotlinks — return our proxy /download/ route instead of raw URL
+            if 'pixeldrain.com' in resolved_url:
+                movie_id_j = job.get("movie_id", "")
+                link_idx_j = job.get("link_idx", 0)
+                resolved_url = url_for('download_movie', movie_id=movie_id_j, link_idx=link_idx_j, _external=False)
+                logger.info(f"Background job resolved PixelDrain → returning proxy route {resolved_url}")
             return jsonify({
                 "status": "done",
-                "download_url": result["download_url"],
+                "download_url": resolved_url,
                 "filename": result.get("filename", "movie.mkv"),
                 "source": result.get("source", "CDN"),
                 "quality": result.get("quality", "")

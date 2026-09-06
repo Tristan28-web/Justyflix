@@ -207,34 +207,34 @@ def resolve_movie_direct_download(
         if file_id:
             target_form = soup1.find('form', {'id': file_id})
 
-            if not target_form:
-                best_tr_form = None
-                for tr in soup1.find_all('tr'):
-                    txt = tr.get_text().lower()
-                    if res_token in txt:
-                        f = tr.find('form')
-                        if f and f.find('input', {'name': 'FU'}):
-                            if is_hevc and 'hevc' in txt:
-                                target_form = f
-                                break
-                            if not best_tr_form:
-                                best_tr_form = f
-                if not target_form and best_tr_form:
-                    target_form = best_tr_form
+        if not target_form:
+            best_tr_form = None
+            for tr in soup1.find_all('tr'):
+                txt = tr.get_text().lower()
+                if res_token in txt:
+                    f = tr.find('form')
+                    if f and f.find('input', {'name': 'FU'}):
+                        if is_hevc and 'hevc' in txt:
+                            target_form = f
+                            break
+                        if not best_tr_form:
+                            best_tr_form = f
+            if not target_form and best_tr_form:
+                target_form = best_tr_form
 
-            if not target_form:
-                for f in soup1.find_all('form'):
-                    if f.find('input', {'name': 'FU'}):
-                        target_form = f
-                        break
+        if not target_form:
+            for f in soup1.find_all('form'):
+                if f.find('input', {'name': 'FU'}):
+                    target_form = f
+                    break
 
-            if not target_form:
-                raise Exception("No download form found on movie page.")
+        if not target_form:
+            raise Exception("No download form found on movie page.")
 
-            action1 = target_form.get('action') or "https://search.technews24.site/blog.php"
-            if not action1.startswith('http'):
-                action1 = urllib.parse.urljoin('https://search.technews24.site/', action1)
-            inputs1 = {inp.get('name'): inp.get('value') for inp in target_form.find_all('input')}
+        action1 = target_form.get('action') or "https://search.technews24.site/blog.php"
+        if not action1.startswith('http'):
+            action1 = urllib.parse.urljoin('https://search.technews24.site/', action1)
+        inputs1 = {inp.get('name'): inp.get('value') for inp in target_form.find_all('input')}
 
         # Step 2: POST to blog.php
         req2 = urllib.request.Request(

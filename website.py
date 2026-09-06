@@ -557,8 +557,8 @@ def download_movie(movie_id, link_idx):
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
 
-    # Redirect relative stream routes, magnet links, or Google Drive / R2 direct storage links
-    if r2_url.startswith('/') or r2_url.startswith('magnet:') or 'drive.google.com' in r2_url or 'r2.cloudflarestorage.com' in r2_url:
+    # Redirect relative stream routes, magnet links, or Google Drive links (R2 storage URLs stream through proxy for auto-audio patching)
+    if r2_url.startswith('/') or r2_url.startswith('magnet:') or 'drive.google.com' in r2_url:
         return redirect(r2_url)
     genre_str = str(movie.get('genre', '')).lower()
     desc_str = str(movie.get('description', '')).lower()

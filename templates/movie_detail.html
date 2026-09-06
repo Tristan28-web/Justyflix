@@ -199,67 +199,92 @@ document.addEventListener('DOMContentLoaded', function() {
   downloadBtns.forEach(btn => {
     btn.addEventListener('click', async function(e) {
       e.preventDefault();
-      const movieId = this.getAttribute('data-movie-id');
-      const linkIdx = this.getAttribute('data-link-idx');
-      const quality = this.getAttribute('data-quality');
+      const movieId  = this.getAttribute('data-movie-id');
+      const linkIdx  = this.getAttribute('data-link-idx');
+      const quality  = this.getAttribute('data-quality');
       const originalHtml = this.innerHTML;
+      const btn = this;
 
-      // Visual loading state
-      this.disabled = true;
-      this.style.pointerEvents = 'none';
-      this.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Preparing ${quality} Download...`;
+      btn.disabled = true;
+      btn.style.pointerEvents = 'none';
 
+      // ── Step 1: Start async resolution job (returns instantly) ──────────
+      let jobId = null;
       try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        let data = null;
-        try {
-          const resp = await fetch(`/api/resolve-download/${movieId}/${linkIdx}`, { signal: controller.signal });
-          clearTimeout(timeoutId);
-          data = await resp.json();
-        } catch (fetchErr) {
-          console.warn('API resolve fetch timeout/error, falling back to direct download endpoint:', fetchErr);
-          data = { status: 'success', download_url: `/download/${movieId}/${linkIdx}` };
+        const startResp = await fetch(`/api/start-resolve/${movieId}/${linkIdx}`);
+        const startData = await startResp.json();
+        if (startData.status === 'started' && startData.job_id) {
+          jobId = startData.job_id;
         }
-
-        if (data.status === 'success' && data.download_url) {
-          this.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality} to PC!`;
-          window.location.href = data.download_url;
-
-          setTimeout(() => {
-            this.innerHTML = originalHtml;
-            this.disabled = false;
-            this.style.pointerEvents = 'auto';
-          }, 3500);
-        } else if (data.direct_cdn_url && data.direct_cdn_url.startsWith('http')) {
-          this.innerHTML = `<i class="bi bi-arrow-down-circle-fill text-info me-2"></i> Connecting to mirror...`;
-          window.location.href = data.direct_cdn_url;
-          setTimeout(() => {
-            this.innerHTML = originalHtml;
-            this.disabled = false;
-            this.style.pointerEvents = 'auto';
-          }, 3500);
-        } else {
-          // Direct fallback if mirror API response is slow or updating
-          window.location.href = `/download/${movieId}/${linkIdx}`;
-          setTimeout(() => {
-            this.innerHTML = originalHtml;
-            this.disabled = false;
-            this.style.pointerEvents = 'auto';
-          }, 3500);
-        }
-      } catch (err) {
-        console.warn('API download resolve error:', err);
-        window.location.href = `/download/${movieId}/${linkIdx}`;
-        setTimeout(() => {
-          this.innerHTML = originalHtml;
-          this.disabled = false;
-          this.style.pointerEvents = 'auto';
-        }, 3000);
+      } catch (startErr) {
+        console.warn('start-resolve failed, using legacy /download/ route:', startErr);
       }
+
+      if (!jobId) {
+        // Fallback: navigate directly (old behaviour)
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Resolving ${quality}…`;
+        window.location.href = `/download/${movieId}/${linkIdx}`;
+        setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 5000);
+        return;
+      }
+
+      // ── Step 2: Poll resolve-status every 2 seconds ─────────────────────
+      let elapsed = 0;
+      const MAX_WAIT = 90; // seconds
+      const POLL_INTERVAL = 2000;
+
+      const updateLabel = () => {
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Resolving ${quality}… ${elapsed}s`;
+      };
+      updateLabel();
+
+      const pollTimer = setInterval(async () => {
+        elapsed += POLL_INTERVAL / 1000;
+        updateLabel();
+
+        if (elapsed >= MAX_WAIT) {
+          clearInterval(pollTimer);
+          console.warn('Resolution timed out after', MAX_WAIT, 's — falling back to /download/');
+          btn.innerHTML = `<i class="bi bi-cloud-download me-2"></i> Redirecting…`;
+          window.location.href = `/download/${movieId}/${linkIdx}`;
+          setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 5000);
+          return;
+        }
+
+        try {
+          const statusResp = await fetch(`/api/resolve-status/${jobId}`);
+          const statusData = await statusResp.json();
+
+          if (statusData.status === 'done' && statusData.download_url) {
+            clearInterval(pollTimer);
+            const dlUrl = statusData.download_url;
+            btn.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality}!`;
+
+            // For pixeldrain — go through our streaming proxy; for everything else redirect direct
+            if (dlUrl.startsWith('http') || dlUrl.startsWith('magnet:')) {
+              window.location.href = dlUrl;
+            } else {
+              window.location.href = `/download/${movieId}/${linkIdx}`;
+            }
+            setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
+
+          } else if (statusData.status === 'failed') {
+            clearInterval(pollTimer);
+            console.warn('Resolution failed:', statusData.error);
+            btn.innerHTML = `<i class="bi bi-cloud-download me-2"></i> Trying source…`;
+            window.location.href = `/download/${movieId}/${linkIdx}`;
+            setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
+
+          }
+          // else status === 'pending' → keep polling
+        } catch (pollErr) {
+          console.warn('Poll error:', pollErr);
+        }
+      }, POLL_INTERVAL);
+
     });
   });
 });
 </script>
 {% endblock %}
+

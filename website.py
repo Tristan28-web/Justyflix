@@ -68,6 +68,61 @@ crawler_state = {
 }
 _crawler_lock = threading.Lock()
 
+# ── Async Download Resolution Jobs ───────────────────────────────────────────
+# Stores background resolution jobs so the HTTP response returns instantly while
+# the 7-step PHP shortlink chain runs in a daemon thread (no Render 30s timeout).
+import uuid, time as _time
+
+_resolution_jobs: Dict[str, Dict[str, Any]] = {}   # job_id → {status, result, expires_at}
+_jobs_lock = threading.Lock()
+
+def _start_resolution_job(movie_id: str, link_idx: int, source_url: str, quality: str,
+                           fallback_url: str, file_id: str) -> str:
+    """Spawns a daemon thread to resolve the download chain and returns a job_id."""
+    job_id = str(uuid.uuid4())
+    with _jobs_lock:
+        _resolution_jobs[job_id] = {
+            "status": "pending",
+            "result": None,
+            "expires_at": _time.time() + 300   # keep for 5 minutes
+        }
+        # Purge expired jobs
+        expired = [k for k, v in _resolution_jobs.items() if _time.time() > v["expires_at"]]
+        for k in expired:
+            del _resolution_jobs[k]
+
+    def _worker():
+        try:
+            res = resolve_movie_direct_download(
+                source_url=source_url,
+                target_quality=quality,
+                fallback_url=fallback_url,
+                file_id=file_id,
+                timeout=20   # more generous timeout since there's no HTTP request limit
+            )
+            if not res.get("success") or not res.get("download_url"):
+                res = resolve_movie_direct_download(
+                    source_url=source_url,
+                    target_quality=quality,
+                    fallback_url=fallback_url,
+                    file_id=file_id,
+                    timeout=20,
+                    force_refresh=True
+                )
+            with _jobs_lock:
+                _resolution_jobs[job_id]["status"] = "done"
+                _resolution_jobs[job_id]["result"] = res
+        except Exception as ex:
+            logger.warning(f"Async resolution job {job_id} failed: {ex}")
+            with _jobs_lock:
+                _resolution_jobs[job_id]["status"] = "failed"
+                _resolution_jobs[job_id]["result"] = {"success": False, "download_url": None, "error": str(ex)}
+
+    t = threading.Thread(target=_worker, daemon=True)
+    t.start()
+    return job_id
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4, target: str = "2026_archive"):
     """Executes crawler in background thread."""
@@ -750,6 +805,74 @@ def api_resolve_download(movie_id, link_idx):
     except Exception as fatal_err:
         logger.error(f"Fatal error in api_resolve_download for {movie_id}: {fatal_err}", exc_info=True)
         return jsonify({"status": "error", "message": "Download resolution failed. Please try again."}), 200
+
+
+@app.route('/api/start-resolve/<movie_id>/<int:link_idx>', methods=['GET'])
+def api_start_resolve(movie_id, link_idx):
+    """
+    Starts an async background resolution job and returns a job_id immediately.
+    The frontend polls /api/resolve-status/<job_id> for the result.
+    This sidesteps Render's 30-second hard request timeout for the 7-step
+    PHP shortlink chain (fojik → blog.php → sharelink → freethemesy → R2).
+    """
+    try:
+        movie = db.get_movie(movie_id)
+        if not movie:
+            return jsonify({"status": "error", "message": "Movie not found"}), 404
+
+        links = movie.get('download_links', [])
+        if not links or link_idx < 0 or link_idx >= len(links):
+            return jsonify({"status": "error", "message": "Link index out of range"}), 404
+
+        target_link = links[link_idx]
+        quality = target_link.get('quality') or target_link.get('label') or '1080p'
+        source_url = movie.get('source_url') or target_link.get('url', '')
+        fallback_url = target_link.get('url') or target_link.get('original_url', '')
+        file_id = target_link.get('file_id', '')
+
+        job_id = _start_resolution_job(movie_id, link_idx, source_url, quality, fallback_url, file_id)
+        return jsonify({"status": "started", "job_id": job_id, "quality": quality}), 202
+
+    except Exception as e:
+        logger.error(f"start-resolve error: {e}", exc_info=True)
+        return jsonify({"status": "error", "message": str(e)}), 200
+
+
+@app.route('/api/resolve-status/<job_id>', methods=['GET'])
+def api_resolve_status(job_id):
+    """
+    Polls the status of an async download resolution job.
+    Returns: {status: pending|done|failed, download_url, filename, source}
+    """
+    try:
+        with _jobs_lock:
+            job = _resolution_jobs.get(job_id)
+
+        if not job:
+            return jsonify({"status": "not_found"}), 404
+
+        if job["status"] == "pending":
+            return jsonify({"status": "pending"}), 200
+
+        result = job.get("result") or {}
+
+        if job["status"] == "done" and result.get("success") and result.get("download_url"):
+            return jsonify({
+                "status": "done",
+                "download_url": result["download_url"],
+                "filename": result.get("filename", "movie.mkv"),
+                "source": result.get("source", "CDN"),
+                "quality": result.get("quality", "")
+            }), 200
+        else:
+            return jsonify({
+                "status": "failed",
+                "error": result.get("error", "Resolution failed")
+            }), 200
+
+    except Exception as e:
+        logger.error(f"resolve-status error: {e}", exc_info=True)
+        return jsonify({"status": "error"}), 200
 
 
 @app.route('/scrape')

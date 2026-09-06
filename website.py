@@ -658,11 +658,12 @@ def api_resolve_download(movie_id, link_idx):
         }), 200
     else:
         return jsonify({
-            "status": "fallback",
-            "download_url": fallback_url or source_url,
+            "status": "updating",
+            "download_url": "",
+            "direct_cdn_url": "",
             "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
             "quality": quality,
-            "message": res.get('error', 'Download server link is currently refreshing. Please try again in a moment.')
+            "message": "Mirror link currently updating. Please try again in a moment."
         }), 200
 
 

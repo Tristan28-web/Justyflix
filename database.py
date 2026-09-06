@@ -931,12 +931,18 @@ class SupabaseDatabase:
 
 
     def save_movie(self, movie: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Upsert movie to Supabase PostgreSQL."""
+        """Upsert movie to Supabase PostgreSQL with automatic real metadata enrichment."""
         if not movie or "id" not in movie:
             return None
         if not is_2026_or_future(movie):
             return None
         try:
+            try:
+                from metadata_enricher import enrich_movie_record
+                movie = enrich_movie_record(dict(movie))
+            except Exception as enrich_err:
+                logger.debug(f"save_movie metadata enrichment fallback: {enrich_err}")
+
             movie_id = str(movie["id"])
             existing = self.get_movie(movie_id) or {}
             now_iso = datetime.utcnow().isoformat()
@@ -968,10 +974,16 @@ class SupabaseDatabase:
             return None
 
     def save_movies_batch(self, movies_list: List[Dict[str, Any]]) -> int:
-        """Upsert batch of movies to Supabase PostgreSQL."""
+        """Upsert batch of movies to Supabase PostgreSQL with automatic real metadata enrichment."""
         if not movies_list:
             return 0
         try:
+            try:
+                from metadata_enricher import enrich_movie_record
+                movies_list = [enrich_movie_record(dict(m)) for m in movies_list]
+            except Exception as enrich_err:
+                logger.debug(f"save_movies_batch enrichment fallback: {enrich_err}")
+
             batch = []
             for m in movies_list:
                 if m and m.get("id") and is_2026_or_future(m):

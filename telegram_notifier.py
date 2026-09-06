@@ -14,10 +14,38 @@ _last_send_time = 0.0
 _send_lock = threading.Lock()
 
 
+_auto_detected_chat_id: Optional[str] = None
+
+
 def get_telegram_config() -> tuple[str, str]:
-    """Dynamically retrieves current Telegram Bot Token and Chat ID."""
+    """
+    Dynamically retrieves current Telegram Bot Token and Chat ID.
+    If chat_id is not explicitly set in environment, automatically queries getUpdates
+    to discover the admin chat ID as soon as the user starts a conversation with the bot.
+    """
+    global _auto_detected_chat_id
     token = (os.environ.get('TELEGRAM_BOT_TOKEN') or Config.TELEGRAM_BOT_TOKEN or '').strip()
-    chat_id = (os.environ.get('TELEGRAM_CHAT_ID') or Config.TELEGRAM_CHAT_ID or '').strip()
+    chat_id = (os.environ.get('TELEGRAM_CHAT_ID') or Config.TELEGRAM_CHAT_ID or _auto_detected_chat_id or '').strip()
+
+    # Attempt automatic discovery if bot token is present but chat_id is missing
+    if token and not chat_id:
+        try:
+            url = f"https://api.telegram.org/bot{token}/getUpdates"
+            req = urllib.request.Request(url, headers={'User-Agent': 'JustyflixMonitor/1.0'})
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read().decode('utf-8'))
+                results = data.get('result', [])
+                if results:
+                    for update in reversed(results):
+                        c = update.get('message', {}).get('chat') or update.get('channel_post', {}).get('chat')
+                        if c and c.get('id'):
+                            _auto_detected_chat_id = str(c['id'])
+                            chat_id = _auto_detected_chat_id
+                            logger.info(f"Automatically detected Telegram chat ID: {chat_id}")
+                            break
+        except Exception as ex:
+            logger.debug(f"Could not auto-detect Telegram chat ID: {ex}")
+
     return token, chat_id
 
 
@@ -205,7 +233,10 @@ def test_telegram_connection() -> Dict[str, Any]:
     if not token:
         return {"success": False, "error": "TELEGRAM_BOT_TOKEN is not configured."}
     if not chat_id:
-        return {"success": False, "error": "TELEGRAM_CHAT_ID is not configured."}
+        return {
+            "success": False,
+            "error": "No Telegram chat detected yet. Please open @justyflixmonitor_bot in your Telegram app, click 'Start' (or send any message), then click 'Test Telegram Ping' again to establish the link."
+        }
 
     test_msg = (
         f"<b>[JUSTYFLIX TELEMETRY] CONNECTION VERIFICATION</b>\n"

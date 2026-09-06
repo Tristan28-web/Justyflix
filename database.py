@@ -292,6 +292,13 @@ class JSONDatabase:
     def _atomic_write(self, data: Dict[str, Any]) -> None:
         """Performs atomic write with pre-write backup."""
         with _db_lock:
+            # Ensure parent directories exist (critical on Render persistent disk first-boot)
+            try:
+                os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
+                os.makedirs(self.backup_dir, exist_ok=True)
+            except Exception as dir_err:
+                logger.warning(f"Could not create data directories: {dir_err}")
+
             # Update stats dynamically
             movies = data.get("movies", {})
             total = len(movies)

@@ -137,6 +137,18 @@ def resolve_movie_direct_download(
 
     logger.info(f"Resolving direct download for {source_url} ({target_quality})")
 
+    # If URL is a P2P magnet link, return directly
+    if (fallback_url and fallback_url.startswith('magnet:')) or (source_url and source_url.startswith('magnet:')):
+        mag_url = fallback_url if (fallback_url and fallback_url.startswith('magnet:')) else source_url
+        return {
+            "success": True,
+            "download_url": mag_url,
+            "filename": f"movie_{target_quality}.torrent",
+            "quality": target_quality,
+            "source": "1337x P2P Magnet Link",
+            "error": None
+        }
+
     # If fallback is already a direct drive or file link, verify and use it
     if fallback_url and ('drive.google.com' in fallback_url or 'r2.cloudflarestorage.com' in fallback_url):
         if verify_r2_url(fallback_url, timeout=3.0):

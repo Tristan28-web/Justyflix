@@ -90,11 +90,10 @@ def run_crawl_task(start_page: int = 1, num_pages: int = 1, concurrency: int = 4
             crawler_state["message"] = f"Crawled {processed}/{total_pages} pages ({scraped_count} 2026+ movies indexed)..."
 
     try:
-        from scrapers.mwlbd_scraper import MWLBDScraper
-        from scrapers.bolly4u_scraper import Bolly4uScraper
+        from scraper import get_active_scrapers
         from datetime import datetime
 
-        scrapers = [MWLBDScraper(), Bolly4uScraper()]
+        scrapers = get_active_scrapers()
         total_scraped_all = 0
         total_pages_all = 0
 
@@ -144,10 +143,9 @@ def start_background_auto_sync_daemon(interval_seconds: int = 1800):
         while True:
             try:
                 logger.info("Auto-sync daemon: Checking multi-source providers for new 2026 releases...")
-                from scrapers.mwlbd_scraper import MWLBDScraper
-                from scrapers.bolly4u_scraper import Bolly4uScraper
+                from scraper import get_active_scrapers
 
-                scrapers = [MWLBDScraper(), Bolly4uScraper()]
+                scrapers = get_active_scrapers()
                 new_releases_count = 0
 
                 for sc in scrapers:

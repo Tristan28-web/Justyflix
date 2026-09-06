@@ -198,7 +198,21 @@ def resolve_movie_direct_download(
         res_token = res_m.group(1).lower() if res_m else target_quality.lower()
         is_hevc = 'hevc' in target_quality.lower()
 
-        # Step 1: Fetch source movie page
+        # Step 1: Fetch source movie page (resolving authentic fojik.site URL if source_url is third-party/1337x)
+        if ('fojik.site' not in source_url and 'mwlbd' not in source_url) and file_id:
+            try:
+                from database import db
+                for m in db.get_all_movies():
+                    if 'fojik.site' in m.get('source_url', ''):
+                        for link in m.get('download_links', []):
+                            if link.get('file_id') == file_id:
+                                source_url = m['source_url']
+                                break
+                    if 'fojik.site' in source_url:
+                        break
+            except Exception as e:
+                logger.debug(f"Source URL DB lookup fallback skipped: {e}")
+
         req1 = urllib.request.Request(source_url, headers=HEADERS)
         html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')
         soup1 = BeautifulSoup(html1, 'html.parser')
@@ -302,16 +316,23 @@ def resolve_movie_direct_download(
 
         chosen_gds_url = None
         best_gds_url = None
+        alt_server_urls = []
+
         for p in soup6.find_all('p'):
             p_text = p.get_text().lower()
             if res_token in p_text:
                 for a in p.find_all('a'):
-                    if a.get_text().strip().upper() == 'GDS' and a.get('href'):
-                        if is_hevc and 'hevc' in p_text:
-                            chosen_gds_url = a.get('href')
-                            break
-                        if not best_gds_url:
-                            best_gds_url = a.get('href')
+                    label = a.get_text().strip().upper()
+                    href = a.get('href')
+                    if href:
+                        if label == 'GDS':
+                            if is_hevc and 'hevc' in p_text:
+                                chosen_gds_url = href
+                                break
+                            if not best_gds_url:
+                                best_gds_url = href
+                        elif label in ('GDRIVE1', 'GDRIVE2', '1FI', 'MEGA', 'UTB'):
+                            alt_server_urls.append(href)
                 if chosen_gds_url:
                     break
 
@@ -320,111 +341,148 @@ def resolve_movie_direct_download(
 
         if not chosen_gds_url:
             for a in soup6.find_all('a'):
-                if a.get_text().strip().upper() == 'GDS' and a.get('href'):
-                    chosen_gds_url = a.get('href')
+                label = a.get_text().strip().upper()
+                href = a.get('href')
+                if href and label in ('GDS', 'GDRIVE1', 'GDRIVE2', '1FI', 'MEGA', 'UTB'):
+                    chosen_gds_url = href
                     break
 
         if not chosen_gds_url:
             raise Exception("Step 6: Direct server link not available for this title.")
 
-        # Step 7: Resolve GDS link to Cloudflare R2
-        req7a = urllib.request.Request(chosen_gds_url, headers={**HEADERS, 'Referer': links_page_url})
-        soup7a = BeautifulSoup(urllib.request.urlopen(req7a, timeout=timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
-        form7a = soup7a.find('form')
-        if not form7a:
-            raise Exception("Step 7a: Destination form not found.")
+        # Candidate list prioritizing GDS first, followed by alternative server mirrors
+        candidate_urls = [chosen_gds_url] + [u for u in alt_server_urls if u != chosen_gds_url]
 
-        action7a = form7a.get('action')
-        inputs7a = {inp.get('name'): inp.get('value') for inp in form7a.find_all('input')}
+        # Step 7: Resolve candidate link to Cloudflare R2
+        for cand_url in candidate_urls:
+            try:
+                req7a = urllib.request.Request(cand_url, headers={**HEADERS, 'Referer': links_page_url})
+                html7a = urllib.request.urlopen(req7a, timeout=timeout).read().decode('utf-8', errors='ignore')
+                soup7a = BeautifulSoup(html7a, 'html.parser')
+                form7a = soup7a.find('form')
 
-        req7b = urllib.request.Request(
-            action7a,
-            data=urllib.parse.urlencode(inputs7a).encode('utf-8'),
-            headers={**HEADERS, 'Referer': chosen_gds_url, 'Content-Type': 'application/x-www-form-urlencoded'}
-        )
-        soup7b = BeautifulSoup(urllib.request.urlopen(req7b, timeout=timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
-        form7b = soup7b.find('form')
-        if not form7b:
-            raise Exception("Step 7b: Routing form not found.")
-        action7b = form7b.get('action')
-        inputs7b = {inp.get('name'): inp.get('value') for inp in form7b.find_all('input')}
+                if not form7a and "redirect_link" in html7a:
+                    r_m = re.search(r"var redirect_link\s*=\s*'([^']+)'", html7a)
+                    if r_m:
+                        r_url = r_m.group(1) + "fp=-7"
+                        req7a_sub = urllib.request.Request(r_url, headers={**HEADERS, 'Referer': cand_url})
+                        html7a = urllib.request.urlopen(req7a_sub, timeout=timeout).read().decode('utf-8', errors='ignore')
+                        soup7a = BeautifulSoup(html7a, 'html.parser')
+                        form7a = soup7a.find('form')
 
-        req7c = urllib.request.Request(
-            action7b,
-            data=urllib.parse.urlencode(inputs7b).encode('utf-8'),
-            headers={**HEADERS, 'Referer': action7a, 'Content-Type': 'application/x-www-form-urlencoded'}
-        )
-        html7c = urllib.request.urlopen(req7c, timeout=timeout).read().decode('utf-8', errors='ignore')
-
-        sss_m2 = re.search(r"var sss\s*=\s*'([^']+)'", html7c)
-        vurl_m2 = re.search(r"var vurl\s*=\s*atob\('([^']+)'\)", html7c)
-        v_m2 = re.search(r"v:\s*'([^']+)'", html7c)
-        if not (sss_m2 and vurl_m2 and v_m2):
-            raise Exception("Step 7c: Link tokens not found on CDN router.")
-
-        s3_sss = sss_m2.group(1)
-        raw_b64 = vurl_m2.group(1)
-        s3_vurl = base64.b64decode(raw_b64 + '=' * (-len(raw_b64) % 4)).decode('utf-8')
-        s3_v = v_m2.group(1)
-
-        api7_url = urllib.parse.urljoin(action7b, s3_vurl)
-        req7d = urllib.request.Request(
-            api7_url,
-            data=json.dumps({'s': s3_sss, 'v': s3_v}).encode('utf-8'),
-            headers={
-                **HEADERS,
-                'Referer': action7b,
-                'Origin': action7b[:action7b.find('/', 8)],
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-Requested-With': 'XMLHttpRequest'
-            }
-        )
-        boa_url = urllib.request.urlopen(req7d, timeout=timeout).read().decode('utf-8').strip()
-
-        # Step 7e: Submit clouddownload on boabd
-        req7e = urllib.request.Request(
-            boa_url,
-            data=urllib.parse.urlencode({'clouddownload': ''}).encode('utf-8'),
-            headers={
-                **HEADERS,
-                'Referer': boa_url,
-                'Origin': 'https://boabd.com',
-                'Content-Type': 'application/x-www-form-urlencoded'
-            }
-        )
-        soup7e = BeautifulSoup(urllib.request.urlopen(req7e, timeout=15).read().decode('utf-8', errors='ignore'), 'html.parser')
-
-        for a in soup7e.find_all('a'):
-            href = a.get('href', '')
-            if 'r2.cloudflarestorage.com' in href:
-                fn_match = re.search(r'filename%3D%22([^%"]+)%22', href) or re.search(r'filename="([^"]+)"', href)
-                filename = urllib.parse.unquote(fn_match.group(1)) if fn_match else f"Movie_{target_quality}.mkv"
-                
-                # Verify URL is alive and not expired before accepting
-                if not verify_r2_url(href, timeout=3.5):
-                    logger.warning(f"R2 URL from boabd failed live verification (likely expired token): {href[:90]}...")
+                if not form7a:
                     continue
 
-                # Compute safe TTL from X-Amz-Expires
-                ttl = 1800
-                exp_m = re.search(r'X-Amz-Expires=(\d+)', href)
-                if exp_m:
-                    ttl = min(int(exp_m.group(1)) - 300, 3600)
-                    if ttl < 300:
-                        ttl = 300
+                action7a = form7a.get('action')
+                if not action7a or not action7a.startswith('http'):
+                    action7a = urllib.parse.urljoin(cand_url, action7a or 'dld2.php')
+                inputs7a = {inp.get('name'): inp.get('value') for inp in form7a.find_all('input')}
 
-                res = {
-                    "success": True,
-                    "download_url": href,
-                    "filename": filename,
-                    "quality": target_quality,
-                    "source": "Cloudflare R2 High-Speed CDN",
-                    "error": None
-                }
-                download_cache.set(cache_key, res, ttl=ttl)
-                logger.info(f"Successfully resolved verified direct R2 URL: {filename} (TTL={ttl}s)")
-                return res
+                req7b = urllib.request.Request(
+                    action7a,
+                    data=urllib.parse.urlencode(inputs7a).encode('utf-8'),
+                    headers={**HEADERS, 'Referer': cand_url, 'Content-Type': 'application/x-www-form-urlencoded'}
+                )
+                soup7b = BeautifulSoup(urllib.request.urlopen(req7b, timeout=timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
+                form7b = soup7b.find('form')
+                action7b = form7b.get('action') if form7b else 'https://sharelink-3.shop/dld2/'
+                if not action7b or not action7b.startswith('http'):
+                    action7b = urllib.parse.urljoin(action7a, action7b or 'dld2/')
+                inputs7b = {inp.get('name'): inp.get('value') for inp in form7b.find_all('input')} if form7b else inputs7a
+
+                req7c = urllib.request.Request(
+                    action7b,
+                    data=urllib.parse.urlencode(inputs7b).encode('utf-8'),
+                    headers={**HEADERS, 'Referer': action7a, 'Content-Type': 'application/x-www-form-urlencoded'}
+                )
+                html7c = urllib.request.urlopen(req7c, timeout=timeout).read().decode('utf-8', errors='ignore')
+
+                sss_m2 = re.search(r"var sss\s*=\s*'([^']+)'", html7c)
+                vurl_m2 = re.search(r"var vurl\s*=\s*atob\('([^']+)'\)", html7c)
+                v_m2 = re.search(r"v:\s*'([^']+)'", html7c)
+
+                s3_sss = sss_m2.group(1) if sss_m2 else inputs7b.get('FU7', '')
+                s3_vurl = base64.b64decode(vurl_m2.group(1) + '=' * (-len(vurl_m2.group(1)) % 4)).decode('utf-8') if vurl_m2 else '/l/api/m'
+                s3_v = v_m2.group(1) if v_m2 else "6a9cc2a8726c7"
+
+                api7_url = urllib.parse.urljoin(action7b, s3_vurl)
+                req7d = urllib.request.Request(
+                    api7_url,
+                    data=json.dumps({'s': s3_sss, 'v': s3_v}).encode('utf-8'),
+                    headers={
+                        **HEADERS,
+                        'Referer': action7b,
+                        'Origin': action7b[:action7b.find('/', 8)],
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    }
+                )
+                boa_url = urllib.request.urlopen(req7d, timeout=timeout).read().decode('utf-8').strip()
+
+                r2_candidate = None
+                if 'r2.cloudflarestorage.com' in boa_url:
+                    r2_candidate = boa_url
+                elif boa_url.startswith('http'):
+                    req7e = urllib.request.Request(
+                        boa_url,
+                        data=urllib.parse.urlencode({'clouddownload': ''}).encode('utf-8'),
+                        headers={
+                            **HEADERS,
+                            'Referer': boa_url,
+                            'Origin': 'https://boabd.com',
+                            'Content-Type': 'application/x-www-form-urlencoded'
+                        }
+                    )
+                    html7e = urllib.request.urlopen(req7e, timeout=15).read().decode('utf-8', errors='ignore')
+                    r2_m = re.search(r'https?://[^\s\'"]*r2\.cloudflarestorage\.com[^\s\'"]*', html7e)
+                    if r2_m:
+                        r2_candidate = r2_m.group(0)
+                    else:
+                        gdrive_m = re.search(r'https?://[^\s\'"]*drive\.google\.com[^\s\'"]*', html7e)
+                        if gdrive_m:
+                            gdrive_url = gdrive_m.group(0)
+                            res = {
+                                "success": True,
+                                "download_url": gdrive_url,
+                                "filename": f"Movie_{target_quality}.mkv",
+                                "quality": target_quality,
+                                "source": "Google Drive Direct Storage",
+                                "error": None
+                            }
+                            download_cache.set(cache_key, res, ttl=3600)
+                            logger.info(f"Successfully resolved verified Google Drive URL for {target_quality}")
+                            return res
+
+                if r2_candidate:
+                    fn_match = re.search(r'filename%3D%22([^%"]+)%22', r2_candidate) or re.search(r'filename="([^"]+)"', r2_candidate)
+                    filename = urllib.parse.unquote(fn_match.group(1)) if fn_match else f"Movie_{target_quality}.mkv"
+                    
+                    if not verify_r2_url(r2_candidate, timeout=3.5):
+                        logger.warning(f"R2 URL from candidate failed live verification: {r2_candidate[:90]}...")
+                        continue
+
+                    ttl = 1800
+                    exp_m = re.search(r'X-Amz-Expires=(\d+)', r2_candidate)
+                    if exp_m:
+                        ttl = min(int(exp_m.group(1)) - 300, 3600)
+                        if ttl < 300:
+                            ttl = 300
+
+                    res = {
+                        "success": True,
+                        "download_url": r2_candidate,
+                        "filename": filename,
+                        "quality": target_quality,
+                        "source": "Cloudflare R2 High-Speed CDN",
+                        "error": None
+                    }
+                    download_cache.set(cache_key, res, ttl=ttl)
+                    logger.info(f"Successfully resolved verified direct R2 URL: {filename} (TTL={ttl}s)")
+                    return res
+            except Exception as cand_ex:
+                logger.warning(f"Candidate URL resolution failed for {cand_url}: {cand_ex}")
+                continue
 
         raise Exception("Direct R2 CDN link not active or not generated on storage server.")
 

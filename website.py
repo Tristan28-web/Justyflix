@@ -3,7 +3,7 @@ import re
 import threading
 from datetime import datetime
 from typing import Dict, Any
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context, send_from_directory, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, Response, stream_with_context, send_from_directory, flash, make_response
 from flask_cors import CORS
 from config import Config, setup_logger
 from database import db, is_series
@@ -1209,28 +1209,73 @@ def api_get_stats():
     }), 200
 
 
+def is_monitor_authorized(req) -> bool:
+    """Checks if request has valid authorization to the private telemetry portal."""
+    expected_key = (os.environ.get('MONITOR_ACCESS_KEY') or Config.MONITOR_ACCESS_KEY or '').strip()
+    if not expected_key:
+        return True
+    provided_key = (
+        req.args.get('key') or
+        req.cookies.get('justy_monitor_key') or
+        req.headers.get('X-Monitor-Key') or
+        req.form.get('key') or
+        ''
+    ).strip()
+    return provided_key == expected_key
+
+
 # ── Real-Time Standalone Monitoring & Analytics Endpoints ──────────────────
-@app.route('/monitor')
+@app.route('/monitor', methods=['GET', 'POST'])
 def monitor_dashboard():
     """
-    Standalone Real-Time Justyflix Monitoring Dashboard.
-    Provides live active sessions, 24h & total visitors, download analytics,
-    Telegram bot connection status, top downloaded releases, and instant controls.
+    Dedicated Standalone Justyflix Monitoring & Security Portal.
+    Completely decoupled from the public website with standalone UI and security access key gate.
     """
+    expected_key = (os.environ.get('MONITOR_ACCESS_KEY') or Config.MONITOR_ACCESS_KEY or '').strip()
+
+    # If lock is requested via query param, clear authentication cookie
+    if request.args.get('lock'):
+        resp = make_response(redirect('/monitor'))
+        resp.delete_cookie('justy_monitor_key')
+        return resp
+
+    if expected_key:
+        auth_error = None
+        if request.method == 'POST':
+            submitted_key = request.form.get('key', '').strip()
+            if submitted_key == expected_key:
+                resp = make_response(redirect('/monitor'))
+                resp.set_cookie('justy_monitor_key', expected_key, max_age=86400 * 30, httponly=True, samesite='Lax')
+                return resp
+            else:
+                auth_error = "Invalid Security Access Key."
+
+        if not is_monitor_authorized(request):
+            return render_template('monitor.html', is_locked=True, auth_error=auth_error), 200
+
     stats = tracker.get_summary_stats()
     stats['telegram_configured'] = is_telegram_configured()
-    return render_template(
+
+    resp = make_response(render_template(
         'monitor.html',
+        is_locked=False,
         stats=stats,
-        telegram_ready=is_telegram_configured(),
-        categories=MWLBD_CATEGORIES,
-        nav='monitor'
-    )
+        telegram_ready=is_telegram_configured()
+    ))
+
+    # If key was passed in URL query param, automatically persist in cookie for subsequent visits
+    if expected_key and request.args.get('key') == expected_key:
+        resp.set_cookie('justy_monitor_key', expected_key, max_age=86400 * 30, httponly=True, samesite='Lax')
+
+    return resp
 
 
 @app.route('/api/monitor/stats', methods=['GET'])
 def api_monitor_stats():
     """Returns live JSON metrics for real-time dashboard auto-refresh."""
+    if not is_monitor_authorized(request):
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
     stats = tracker.get_summary_stats()
     stats['telegram_configured'] = is_telegram_configured()
     return jsonify({
@@ -1242,6 +1287,9 @@ def api_monitor_stats():
 @app.route('/api/monitor/test-telegram', methods=['POST'])
 def api_monitor_test_telegram():
     """Dispatches a live test ping to the configured Telegram bot."""
+    if not is_monitor_authorized(request):
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
     result = test_telegram_connection()
     status_code = 200 if result.get("success") else 400
     return jsonify(result), status_code
@@ -1250,6 +1298,9 @@ def api_monitor_test_telegram():
 @app.route('/api/monitor/send-report', methods=['POST'])
 def api_monitor_send_report():
     """Triggers immediate dispatch of the comprehensive 24-hour summary report to Telegram."""
+    if not is_monitor_authorized(request):
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
     result = trigger_immediate_daily_report()
     if isinstance(result, bool):
         result = {"success": result, "message": "Report dispatched" if result else "Failed to dispatch report"}

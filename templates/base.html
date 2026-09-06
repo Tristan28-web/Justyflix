@@ -100,11 +100,6 @@
                 <i class="bi bi-cloud-arrow-down-fill me-3"></i> Downloads
               </a>
             </li>
-            <li>
-              <a href="{{ url_for('monitor_dashboard') }}" class="netflix-mobile-link {% if nav == 'monitor' %}active{% endif %}">
-                <i class="bi bi-activity me-3 text-danger"></i> Live Monitor
-              </a>
-            </li>
           </ul>
 
           <!-- Mobile Quick Categories -->
@@ -235,23 +230,14 @@
         </div>
       </div>
 
-      <!-- Clean User Avatar / VIP Profile Dropdown -->
-      <div class="dropdown">
-        <button class="btn btn-link p-0 border-0" type="button" id="vipDropdownBtn" data-bs-toggle="dropdown" aria-expanded="false" title="Justyflix VIP / Admin">
-          <img
-            src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
-            alt="VIP Profile"
-            class="netflix-avatar"
-            onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
-          >
-        </button>
-        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark border-secondary border-opacity-50 shadow-lg" aria-labelledby="vipDropdownBtn" style="background-color: #1a1a1a; min-width: 190px;">
-          <li><h6 class="dropdown-header text-uppercase text-secondary" style="font-size: 0.68rem; letter-spacing: 1px;">Admin & Analytics</h6></li>
-          <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{{ url_for('monitor_dashboard') }}"><i class="bi bi-activity text-danger"></i> <span>Live Monitor</span></a></li>
-          <li><a class="dropdown-item py-2 d-flex align-items-center gap-2" href="{{ url_for('scrape_view') }}"><i class="bi bi-database text-warning"></i> <span>Scraper Console</span></a></li>
-          <li><hr class="dropdown-divider border-secondary border-opacity-25 my-1"></li>
-          <li><span class="dropdown-item-text text-secondary small py-1"><i class="bi bi-shield-check text-success me-1"></i> Admin Access</span></li>
-        </ul>
+      <!-- Clean User Avatar / VIP Profile -->
+      <div class="d-flex align-items-center" title="Justyflix VIP Member">
+        <img
+          src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
+          alt="VIP Profile"
+          class="netflix-avatar"
+          onerror="this.onerror=null; this.src='https://upload.wikimedia.org/wikipedia/commons/0/0b/Netflix-avatar.png';"
+        >
       </div>
     </div>
   </header>
@@ -280,16 +266,7 @@
   <footer class="netflix-footer py-4">
     <div class="netflix-footer-container">
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-secondary small">
-        <div class="d-flex align-items-center gap-3">
-          <span>&copy; 2026 Justyflix. Cloud Stream & Downloader.</span>
-          <span class="d-none d-sm-inline text-secondary">|</span>
-          <a href="{{ url_for('monitor_dashboard') }}" class="text-secondary text-decoration-none text-hover-white">
-            <i class="bi bi-activity text-danger me-1"></i> Live Monitor
-          </a>
-          <a href="{{ url_for('scrape_view') }}" class="text-secondary text-decoration-none text-hover-white">
-            <i class="bi bi-database text-warning me-1"></i> Scraper
-          </a>
-        </div>
+        <span>&copy; 2026 Justyflix. All rights reserved. Cloud Stream & Downloader.</span>
         <span class="netflix-footer-disclaimer m-0 text-center text-md-end">
           Justyflix does not store or host video files on its servers. Content is indexed via public cloud mirrors.
         </span>

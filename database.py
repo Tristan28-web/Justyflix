@@ -537,19 +537,17 @@ class JSONDatabase:
                     m["rating"] = calculate_real_or_authentic_rating(m)
                 if not m.get("download_links") and not m.get("magnet_links"):
                     title = m.get('title', 'Movie')
-                    import urllib.parse
                     clean_title = title.replace(" 2026", "").strip()
-                    webtor_url = f"https://webtor.io/en/show?magnet=magnet:?xt=urn:btih:dummy&dn={urllib.parse.quote(clean_title)}"
                     m['download_links'] = [
                         {
-                            'url': webtor_url,
-                            'original_url': webtor_url,
+                            'url': m.get('source_url', ''),
+                            'original_url': m.get('source_url', ''),
                             'type': 'direct',
                             'file_id': '',
                             'label': 'Direct Cloud Download 1080p',
                             'quality': '1080p',
                             'size': '----',
-                            'source_site': 'WebTor Direct'
+                            'source_site': 'MWLBD'
                         }
                     ]
             return m

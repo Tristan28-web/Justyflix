@@ -318,40 +318,19 @@ def resolve_movie_direct_download(
         best_gds_url = None
         alt_server_urls = []
 
-        for p in soup6.find_all('p'):
-            p_text = p.get_text().lower()
-            if res_token in p_text:
-                for a in p.find_all('a'):
-                    label = a.get_text().strip().upper()
-                    href = a.get('href')
-                    if href:
-                        if label == 'GDS':
-                            if is_hevc and 'hevc' in p_text:
-                                chosen_gds_url = href
-                                break
-                            if not best_gds_url:
-                                best_gds_url = href
-                        elif label in ('GDRIVE1', 'GDRIVE2', '1FI', 'MEGA', 'UTB'):
-                            alt_server_urls.append(href)
-                if chosen_gds_url:
-                    break
+        all_candidate_urls = []
+        for a in soup6.find_all('a'):
+            label = a.get_text().strip().upper()
+            href = a.get('href')
+            if href and href.startswith('http'):
+                if any(k in label for k in ['GDS', 'GDRIVE', 'DRIVE', '1FI', 'MEGA', 'UTB', 'TRNSIT', 'PXD']):
+                    all_candidate_urls.append(href)
 
-        if not chosen_gds_url and best_gds_url:
-            chosen_gds_url = best_gds_url
-
-        if not chosen_gds_url:
-            for a in soup6.find_all('a'):
-                label = a.get_text().strip().upper()
-                href = a.get('href')
-                if href and label in ('GDS', 'GDRIVE1', 'GDRIVE2', '1FI', 'MEGA', 'UTB'):
-                    chosen_gds_url = href
-                    break
-
-        if not chosen_gds_url:
+        if not all_candidate_urls:
             raise Exception("Step 6: Direct server link not available for this title.")
 
-        # Candidate list prioritizing GDS first, followed by alternative server mirrors
-        candidate_urls = [chosen_gds_url] + [u for u in alt_server_urls if u != chosen_gds_url]
+        # Prioritize live technews24.site domain mirrors over dead/timing out technews24.me mirrors
+        candidate_urls = sorted(all_candidate_urls, key=lambda u: (0 if 'technews24.site' in u else 1))
 
         # Step 7: Resolve candidate link to Cloudflare R2
         for cand_url in candidate_urls:
@@ -425,12 +404,13 @@ def resolve_movie_direct_download(
                 if 'r2.cloudflarestorage.com' in boa_url:
                     r2_candidate = boa_url
                 elif boa_url.startswith('http'):
+                    target_fetch_url = boa_url.replace('/url?', '/embed?') if '/url?' in boa_url else boa_url
                     req7e = urllib.request.Request(
-                        boa_url,
+                        target_fetch_url,
                         data=urllib.parse.urlencode({'clouddownload': ''}).encode('utf-8'),
                         headers={
                             **HEADERS,
-                            'Referer': boa_url,
+                            'Referer': target_fetch_url,
                             'Origin': 'https://boabd.com',
                             'Content-Type': 'application/x-www-form-urlencoded'
                         }
@@ -440,7 +420,7 @@ def resolve_movie_direct_download(
                     if r2_m:
                         r2_candidate = r2_m.group(0)
                     else:
-                        gdrive_m = re.search(r'https?://[^\s\'"]*drive\.google\.com[^\s\'"]*', html7e)
+                        gdrive_m = re.search(r'https?://[^\s\'"]*(?:drive\.google\.com|pixeldrain\.com|transfer\.it)[^\s\'"]*', html7e)
                         if gdrive_m:
                             gdrive_url = gdrive_m.group(0)
                             res = {
@@ -448,11 +428,11 @@ def resolve_movie_direct_download(
                                 "download_url": gdrive_url,
                                 "filename": f"Movie_{target_quality}.mkv",
                                 "quality": target_quality,
-                                "source": "Google Drive Direct Storage",
+                                "source": "Direct Storage Cloud",
                                 "error": None
                             }
                             download_cache.set(cache_key, res, ttl=3600)
-                            logger.info(f"Successfully resolved verified Google Drive URL for {target_quality}")
+                            logger.info(f"Successfully resolved verified Direct Storage URL for {target_quality}: {gdrive_url}")
                             return res
 
                 if r2_candidate:
@@ -512,13 +492,12 @@ def resolve_movie_direct_download(
                     break
             
             clean_title = re.sub(r'[^a-zA-Z0-9 ]+', '', m_title or 'Movie').strip()
-            webtor_fallback = f"https://webtor.io/en/show?magnet=magnet:?xt=urn:btih:dummy&dn={urllib.parse.quote(clean_title)}"
             return {
                 "success": True,
-                "download_url": webtor_fallback,
+                "download_url": source_url or fallback_url,
                 "filename": f"{clean_title}_{target_quality}.mkv",
                 "quality": target_quality,
-                "source": "Direct Download via High-Speed Webtor CDN",
+                "source": "Direct Storage Stream",
                 "error": None
             }
         except Exception as fb_ex:

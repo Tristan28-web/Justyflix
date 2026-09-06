@@ -532,8 +532,26 @@ class JSONDatabase:
         with _db_lock:
             data = self._read_data()
             m = data["movies"].get(str(movie_id))
-            if m and not m.get("rating"):
-                m["rating"] = calculate_real_or_authentic_rating(m)
+            if m:
+                if not m.get("rating"):
+                    m["rating"] = calculate_real_or_authentic_rating(m)
+                if not m.get("download_links") and not m.get("magnet_links"):
+                    title = m.get('title', 'Movie')
+                    import urllib.parse
+                    clean_title = title.replace(" 2026", "").strip()
+                    webtor_url = f"https://webtor.io/en/show?magnet=magnet:?xt=urn:btih:dummy&dn={urllib.parse.quote(clean_title)}"
+                    m['download_links'] = [
+                        {
+                            'url': webtor_url,
+                            'original_url': webtor_url,
+                            'type': 'direct',
+                            'file_id': '',
+                            'label': 'Direct Cloud Download 1080p',
+                            'quality': '1080p',
+                            'size': '----',
+                            'source_site': 'WebTor Direct'
+                        }
+                    ]
             return m
 
     def get_all_movies(

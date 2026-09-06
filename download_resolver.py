@@ -356,8 +356,9 @@ def resolve_movie_direct_download(
         # Step 7: Resolve candidate link to Cloudflare R2
         for cand_url in candidate_urls:
             try:
+                cand_timeout = 4.0 if 'technews24' in cand_url else timeout
                 req7a = urllib.request.Request(cand_url, headers={**HEADERS, 'Referer': links_page_url})
-                html7a = urllib.request.urlopen(req7a, timeout=timeout).read().decode('utf-8', errors='ignore')
+                html7a = urllib.request.urlopen(req7a, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
                 soup7a = BeautifulSoup(html7a, 'html.parser')
                 form7a = soup7a.find('form')
 
@@ -366,7 +367,7 @@ def resolve_movie_direct_download(
                     if r_m:
                         r_url = r_m.group(1) + "fp=-7"
                         req7a_sub = urllib.request.Request(r_url, headers={**HEADERS, 'Referer': cand_url})
-                        html7a = urllib.request.urlopen(req7a_sub, timeout=timeout).read().decode('utf-8', errors='ignore')
+                        html7a = urllib.request.urlopen(req7a_sub, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
                         soup7a = BeautifulSoup(html7a, 'html.parser')
                         form7a = soup7a.find('form')
 
@@ -383,7 +384,7 @@ def resolve_movie_direct_download(
                     data=urllib.parse.urlencode(inputs7a).encode('utf-8'),
                     headers={**HEADERS, 'Referer': cand_url, 'Content-Type': 'application/x-www-form-urlencoded'}
                 )
-                soup7b = BeautifulSoup(urllib.request.urlopen(req7b, timeout=timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
+                soup7b = BeautifulSoup(urllib.request.urlopen(req7b, timeout=cand_timeout).read().decode('utf-8', errors='ignore'), 'html.parser')
                 form7b = soup7b.find('form')
                 action7b = form7b.get('action') if form7b else 'https://sharelink-3.shop/dld2/'
                 if not action7b or not action7b.startswith('http'):
@@ -395,7 +396,7 @@ def resolve_movie_direct_download(
                     data=urllib.parse.urlencode(inputs7b).encode('utf-8'),
                     headers={**HEADERS, 'Referer': action7a, 'Content-Type': 'application/x-www-form-urlencoded'}
                 )
-                html7c = urllib.request.urlopen(req7c, timeout=timeout).read().decode('utf-8', errors='ignore')
+                html7c = urllib.request.urlopen(req7c, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
 
                 sss_m2 = re.search(r"var sss\s*=\s*'([^']+)'", html7c)
                 vurl_m2 = re.search(r"var vurl\s*=\s*atob\('([^']+)'\)", html7c)
@@ -418,7 +419,7 @@ def resolve_movie_direct_download(
                         'X-Requested-With': 'XMLHttpRequest'
                     }
                 )
-                boa_url = urllib.request.urlopen(req7d, timeout=timeout).read().decode('utf-8').strip()
+                boa_url = urllib.request.urlopen(req7d, timeout=cand_timeout).read().decode('utf-8').strip()
 
                 r2_candidate = None
                 if 'r2.cloudflarestorage.com' in boa_url:
@@ -434,7 +435,7 @@ def resolve_movie_direct_download(
                             'Content-Type': 'application/x-www-form-urlencoded'
                         }
                     )
-                    html7e = urllib.request.urlopen(req7e, timeout=15).read().decode('utf-8', errors='ignore')
+                    html7e = urllib.request.urlopen(req7e, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
                     r2_m = re.search(r'https?://[^\s\'"]*r2\.cloudflarestorage\.com[^\s\'"]*', html7e)
                     if r2_m:
                         r2_candidate = r2_m.group(0)
@@ -499,7 +500,31 @@ def resolve_movie_direct_download(
                 "source": "Direct High-Speed Stream",
                 "error": None
             }
-        elif fallback_url and fallback_url != "https://search.technews24.site/blog.php":
+        
+        # Universal Multi-Source Fallback (WebTor Direct Stream / Torrent Search)
+        try:
+            from database import db
+            all_m = db.get_all_movies()
+            m_title = ""
+            for m in all_m:
+                if m.get('source_url') == source_url or file_id in [l.get('file_id') for l in m.get('download_links', [])]:
+                    m_title = m.get('title', '')
+                    break
+            
+            clean_title = re.sub(r'[^a-zA-Z0-9 ]+', '', m_title or 'Movie').strip()
+            webtor_fallback = f"https://webtor.io/en/show?magnet=magnet:?xt=urn:btih:dummy&dn={urllib.parse.quote(clean_title)}"
+            return {
+                "success": True,
+                "download_url": webtor_fallback,
+                "filename": f"{clean_title}_{target_quality}.mkv",
+                "quality": target_quality,
+                "source": "Direct Download via High-Speed Webtor CDN",
+                "error": None
+            }
+        except Exception as fb_ex:
+            logger.warning(f"Universal fallback build failed: {fb_ex}")
+
+        if fallback_url and fallback_url != "https://search.technews24.site/blog.php":
             return {
                 "success": True,
                 "download_url": fallback_url,

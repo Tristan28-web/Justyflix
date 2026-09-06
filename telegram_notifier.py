@@ -111,15 +111,15 @@ def send_new_visitor_alert(visitor_data: Dict[str, Any]) -> None:
     timestamp = visitor_data.get('timestamp') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
 
     msg = (
-        f"🚨 <b>New Visitor on Justyflix!</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌐 <b>Location / IP:</b> <code>{ip}</code> ({country})\n"
-        f"📱 <b>Device:</b> {device} ({os_name} / {browser})\n"
-        f"🔗 <b>Landing:</b> <code>{landing_page}</code>\n"
-        f"📍 <b>Referrer:</b> {referrer}\n"
-        f"⏱️ <b>Time:</b> {timestamp}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🍿 <i>Justyflix Real-Time Traffic Guard</i>"
+        f"<b>[JUSTYFLIX TELEMETRY] NEW VISITOR DETECTED</b>\n"
+        f"───────────────────────────────\n"
+        f"<b>IP Address:</b> <code>{ip}</code> ({country})\n"
+        f"<b>Client:</b> {device} | {os_name} | {browser}\n"
+        f"<b>Landing:</b> <code>{landing_page}</code>\n"
+        f"<b>Referrer:</b> {referrer}\n"
+        f"<b>Timestamp:</b> {timestamp}\n"
+        f"───────────────────────────────\n"
+        f"<i>Automated alert dispatched by Justyflix Analytics Service.</i>"
     )
     send_telegram_message_async(msg)
 
@@ -150,9 +150,9 @@ def send_daily_summary_report(stats: Dict[str, Any]) -> bool:
             count = item.get('count', 1)
             quality = item.get('quality', '')
             q_str = f" [{quality}]" if quality else ""
-            top_dl_lines.append(f"  {idx}. <b>{title}</b>{q_str} — {count} DL(s)")
+            top_dl_lines.append(f"  {idx}. <b>{title}</b>{q_str}: {count} download(s)")
     else:
-        top_dl_lines.append("  <i>No downloads recorded in this cycle.</i>")
+        top_dl_lines.append("  <i>No downloads recorded in this reporting period.</i>")
     top_dl_text = "\n".join(top_dl_lines)
 
     # Device breakdown
@@ -170,32 +170,31 @@ def send_daily_summary_report(stats: Dict[str, Any]) -> bool:
             cnt = ref.get('count', 0)
             ref_lines.append(f"  • {dom}: {cnt} visit(s)")
     else:
-        ref_lines.append("  • Direct / Social Media Traffic")
+        ref_lines.append("  • Direct / Social Media")
     ref_text = "\n".join(ref_lines)
 
     msg = (
-        f"📊 <b>Justyflix 24-Hour Analytics Report</b>\n"
-        f"📅 <i>Cycle Ending: {now_str}</i>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👥 <b>Unique Visitors (24h):</b> {unique_24h:,}\n"
-        f"👁️ <b>Total Page Views:</b> {pageviews_24h:,}\n"
-        f"📥 <b>Downloads (24h):</b> {downloads_24h:,}\n"
-        f"🟢 <b>Active Users Now:</b> {active_now}\n"
-        f"🌐 <b>All-Time Visitors:</b> {total_unique:,}\n"
-        f"📦 <b>All-Time Downloads:</b> {total_downloads:,}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"🔥 <b>Top Downloaded Titles (24h):</b>\n"
-        f"{top_dl_text}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📱 <b>Device Breakdown:</b>\n"
-        f"  • Mobile: {mobile_pct}%\n"
-        f"  • Desktop: {desktop_pct}%\n"
-        f"  • Tablet: {tablet_pct}%\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"📍 <b>Top Traffic Sources:</b>\n"
+        f"<b>[JUSTYFLIX] 24-HOUR ANALYTICS SUMMARY REPORT</b>\n"
+        f"<b>Reporting Period:</b> 24 Hours Ending {now_str}\n"
+        f"───────────────────────────────\n"
+        f"<b>TRAFFIC & USER METRICS</b>\n"
+        f"• Active Sessions (Current): {active_now}\n"
+        f"• Unique Visitors (24h): {unique_24h:,}\n"
+        f"• Total Page Views (24h): {pageviews_24h:,}\n"
+        f"• Total Unique Visitors (All-Time): {total_unique:,}\n\n"
+        f"<b>DOWNLOAD ACTIVITY</b>\n"
+        f"• Downloads (24h): {downloads_24h:,}\n"
+        f"• Downloads (All-Time): {total_downloads:,}\n\n"
+        f"<b>TOP DOWNLOADED TITLES (24H)</b>\n"
+        f"{top_dl_text}\n\n"
+        f"<b>CLIENT ENVIRONMENT BREAKDOWN</b>\n"
+        f"• Desktop: {desktop_pct}%\n"
+        f"• Mobile: {mobile_pct}%\n"
+        f"• Tablet: {tablet_pct}%\n\n"
+        f"<b>PRIMARY TRAFFIC SOURCES</b>\n"
         f"{ref_text}\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⏱️ <i>Next automated report will dispatch in 24 hours.</i>"
+        f"───────────────────────────────\n"
+        f"<i>Automated scheduled report. Next delivery in 24 hours.</i>"
     )
     return send_telegram_message(msg)
 
@@ -209,14 +208,16 @@ def test_telegram_connection() -> Dict[str, Any]:
         return {"success": False, "error": "TELEGRAM_CHAT_ID is not configured."}
 
     test_msg = (
-        f"🔔 <b>Justyflix Monitoring Ping</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"✅ Telegram bot integration is active and operational!\n"
-        f"⏱️ Timestamp: {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
-        f"🍿 <i>Ready to receive real-time new user alerts & 24h reports.</i>"
+        f"<b>[JUSTYFLIX TELEMETRY] CONNECTION VERIFICATION</b>\n"
+        f"───────────────────────────────\n"
+        f"<b>Status:</b> Operational\n"
+        f"<b>Timestamp:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"
+        f"<b>Gateway:</b> Telegram Bot API\n"
+        f"───────────────────────────────\n"
+        f"<i>Diagnostic ping verified. Telemetry services are ready for deployment.</i>"
     )
     ok = send_telegram_message(test_msg)
     if ok:
-        return {"success": True, "message": "Test notification delivered successfully to your Telegram chat!"}
+        return {"success": True, "message": "Connection verified. Test message delivered to your Telegram chat."}
     else:
         return {"success": False, "error": "Failed to send message via Telegram API. Check bot token and chat ID."}

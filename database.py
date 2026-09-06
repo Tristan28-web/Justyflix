@@ -255,62 +255,12 @@ class JSONDatabase:
                 os.makedirs(self.backup_dir, exist_ok=True)
             except Exception:
                 pass
-            
-            # Fast check: If database file already exists and has > 100KB, it's already populated
-            if os.path.exists(self.db_path):
-                try:
-                    if os.path.getsize(self.db_path) > 100000:
-                        return
-                except Exception:
-                    pass
 
-            seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'movies.json'))
-            lock_file = f"{self.db_path}.init.lock"
-            
-            if os.path.exists(seed_path) and os.path.abspath(self.db_path) != seed_path:
-                try:
-                    if os.path.exists(lock_file) and (time.time() - os.path.getmtime(lock_file)) < 30:
-                        logger.info("Another process is initializing the database. Waiting...")
-                        time.sleep(1.0)
-                        return
-                    
-                    with open(lock_file, 'w') as lf:
-                        lf.write(str(os.getpid()))
-
-                    with open(seed_path, 'r', encoding='utf-8') as sf:
-                        seed_data = json.load(sf)
-                    seed_movies = seed_data.get('movies', {})
-                    
-                    current_data = {}
-                    if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 10:
-                        try:
-                            with open(self.db_path, 'r', encoding='utf-8') as df:
-                                current_data = json.load(df)
-                        except Exception:
-                            current_data = {}
-
-                    current_movies = current_data.get('movies', {})
-                    if len(current_movies) < len(seed_movies):
-                        for m_id, m_data in seed_movies.items():
-                            if m_id not in current_movies:
-                                current_movies[m_id] = m_data
-
-                        current_data['movies'] = current_movies
-                        self._atomic_write(current_data)
-                        logger.info(f"Merged {len(seed_movies)} seed movies into persistent database at {self.db_path}.")
-                except Exception as e:
-                    logger.warning(f"Seed database merge exception: {e}")
-                finally:
-                    try:
-                        if os.path.exists(lock_file):
-                            os.remove(lock_file)
-                    except Exception:
-                        pass
-            
             if not os.path.exists(self.db_path):
-                logger.info(f"Initializing empty JSON database at {self.db_path}")
                 initial_data = self._default_schema()
                 self._atomic_write(initial_data)
+
+            self.ensure_seeded()
 
     def _read_data(self) -> Dict[str, Any]:
         """Reads and parses JSON database safely."""

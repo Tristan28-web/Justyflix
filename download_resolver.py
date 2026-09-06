@@ -198,18 +198,14 @@ def resolve_movie_direct_download(
         res_token = res_m.group(1).lower() if res_m else target_quality.lower()
         is_hevc = 'hevc' in target_quality.lower()
 
-        if file_id and file_id.isdigit() and fallback_url and 'blog.php' in fallback_url:
-            action1 = fallback_url
-            inputs1 = {'FU': file_id}
-        else:
-            # Step 1: Fetch source movie page
-            req1 = urllib.request.Request(source_url, headers=HEADERS)
-            html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')
-            soup1 = BeautifulSoup(html1, 'html.parser')
+        # Step 1: Fetch source movie page
+        req1 = urllib.request.Request(source_url, headers=HEADERS)
+        html1 = urllib.request.urlopen(req1, timeout=timeout).read().decode('utf-8', errors='ignore')
+        soup1 = BeautifulSoup(html1, 'html.parser')
 
-            target_form = None
-            if file_id:
-                target_form = soup1.find('form', {'id': file_id})
+        target_form = None
+        if file_id:
+            target_form = soup1.find('form', {'id': file_id})
 
             if not target_form:
                 best_tr_form = None
@@ -236,6 +232,8 @@ def resolve_movie_direct_download(
                 raise Exception("No download form found on movie page.")
 
             action1 = target_form.get('action') or "https://search.technews24.site/blog.php"
+            if not action1.startswith('http'):
+                action1 = urllib.parse.urljoin('https://search.technews24.site/', action1)
             inputs1 = {inp.get('name'): inp.get('value') for inp in target_form.find_all('input')}
 
         # Step 2: POST to blog.php
@@ -250,6 +248,8 @@ def resolve_movie_direct_download(
         if not form2:
             raise Exception("Step 2: Verification form not found on blog.php.")
         action2 = form2.get('action')
+        if not action2 or not action2.startswith('http'):
+            action2 = urllib.parse.urljoin('https://sharelink-1.shop/', action2 or 'dld2.php')
         inputs2 = {inp.get('name'): inp.get('value') for inp in form2.find_all('input')}
 
         # Step 3: POST to sharelink-1.shop/dld2.php
@@ -261,23 +261,23 @@ def resolve_movie_direct_download(
         html3 = urllib.request.urlopen(req3, timeout=timeout).read().decode('utf-8', errors='ignore')
         soup3 = BeautifulSoup(html3, 'html.parser')
         form3 = soup3.find('form')
-        if not form3:
-            raise Exception("Step 3: Verification form not found on sharelink-1.")
-        action3 = form3.get('action')
-        inputs3 = {inp.get('name'): inp.get('value') for inp in form3.find_all('input')}
+        action3 = form3.get('action') if form3 else None
+        if not action3 or not action3.startswith('http'):
+            action3 = urllib.parse.urljoin('https://freethemesy.shop/', action3 or 'dld2.php')
+        inputs3 = {inp.get('name'): inp.get('value') for inp in form3.find_all('input')} if form3 else inputs2
 
         # Step 4: POST to freethemesy.shop/dld2.php
         req4 = urllib.request.Request(
             action3,
             data=urllib.parse.urlencode(inputs3).encode('utf-8'),
-            headers={**HEADERS, 'Referer': action3, 'Content-Type': 'application/x-www-form-urlencoded'}
+            headers={**HEADERS, 'Referer': action2, 'Content-Type': 'application/x-www-form-urlencoded'}
         )
         html4 = urllib.request.urlopen(req4, timeout=timeout).read().decode('utf-8', errors='ignore')
 
         sss_m = re.search(r"var sss\s*=\s*'([^']+)'", html4)
-        if not sss_m:
+        sss_val = sss_m.group(1) if sss_m else inputs3.get('FU2', '')
+        if not sss_val:
             raise Exception("Step 4: Token not found in verification page.")
-        sss_val = sss_m.group(1)
         v_literal = re.search(r"'([a-f0-9]{13})'", html4)
         v_val = v_literal.group(1) if v_literal else "6a9be278aa0a3"
 
@@ -429,7 +429,7 @@ def resolve_movie_direct_download(
         raise Exception("Direct R2 CDN link not active or not generated on storage server.")
 
     except Exception as ex:
-        logger.error(f"Download resolution error for {source_url} ({target_quality}): {ex}")
+        logger.exception(f"Download resolution error for {source_url} ({target_quality}): {ex}")
         # Fallback to direct GDrive download if file_id exists
         if file_id and file_id.isalnum() and len(file_id) > 15:
             fallback = f"https://drive.google.com/uc?export=download&confirm=t&id={file_id}"

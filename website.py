@@ -550,16 +550,19 @@ def download_movie(movie_id, link_idx):
             force_refresh=True
         )
 
-    if not res.get('success') or not res.get('download_url') or 'blog.php' in str(res.get('download_url', '')) or 'technews24' in str(res.get('download_url', '')):
-        logger.warning(f"Download resolution failed or returned intermediate HTML for {movie_id} [{quality}]. Safe fallback.")
+    if not res.get('success') or not res.get('download_url'):
+        logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Utilizing safe source fallback.")
+        fallback_target = target_link.get('url') or movie.get('source_url') or ''
+        if fallback_target and fallback_target.startswith('http') and 'blog.php' not in fallback_target:
+            return redirect(fallback_target, code=302)
         return redirect(url_for('movie_detail', movie_id=movie_id))
 
     r2_url = res['download_url']
     filename = res.get('filename') or f"{movie.get('title', 'Movie')}_{quality}.mkv"
 
-    # Redirect relative stream routes, magnet links, or Google Drive links (R2 storage URLs stream through proxy for auto-audio patching)
-    if r2_url.startswith('/') or r2_url.startswith('magnet:') or 'drive.google.com' in r2_url:
-        return redirect(r2_url)
+    # Instantly redirect all CDN / R2 / Drive storage URLs directly to browser download manager (0.1s response, zero tab loading hang)
+    if r2_url.startswith('http') or r2_url.startswith('/') or r2_url.startswith('magnet:'):
+        return redirect(r2_url, code=302)
     genre_str = str(movie.get('genre', '')).lower()
     desc_str = str(movie.get('description', '')).lower()
     is_bollywood = ('bollywood' in genre_str or 'hindi' in genre_str) and not any(
@@ -881,4 +884,4 @@ def internal_error(error):
 
 if __name__ == '__main__':
     logger.info(f"Starting MWLBD Web Server on port {Config.PORT}")
-    app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG)
+    app.run(host='0.0.0.0', port=Config.PORT, debug=Config.DEBUG, threaded=True)

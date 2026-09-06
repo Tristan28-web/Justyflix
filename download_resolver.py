@@ -102,6 +102,62 @@ def verify_r2_url(url: str, timeout: float = 3.5) -> bool:
         return False
 
 
+
+def resolve_pixeldrain(url: str, target_quality: str = "1080p") -> Optional[Dict[str, Any]]:
+    """Resolves PixelDrain list or file links directly to direct high-speed download URLs."""
+    m = re.search(r'pixeldrain\.com/(?:l|u|file)/([a-zA-Z0-9]+)', url)
+    if not m:
+        return None
+    list_or_file_id = m.group(1)
+    if '/file/' in url and not url.endswith('?download'):
+        return {
+            "success": True,
+            "download_url": f"https://pixeldrain.com/api/file/{list_or_file_id}?download",
+            "filename": f"movie_{target_quality}.mkv",
+            "quality": target_quality,
+            "source": "PixelDrain Cloud Direct Storage",
+            "error": None
+        }
+    
+    api_url = f"https://pixeldrain.com/api/list/{list_or_file_id}"
+    req = urllib.request.Request(api_url, headers=HEADERS)
+    try:
+        resp = urllib.request.urlopen(req, timeout=4.0)
+        data = json.loads(resp.read().decode('utf-8'))
+        if data.get('success') and data.get('files'):
+            target_file = None
+            is_hevc = 'hevc' in target_quality.lower()
+            res_m = re.search(r'\b(2160p|1080p|720p|480p|360p)\b', target_quality, re.I)
+            res_token = res_m.group(1).lower() if res_m else '1080p'
+            
+            for f in data['files']:
+                fname = f.get('name', '').lower()
+                if res_token in fname:
+                    if is_hevc and 'hevc' in fname:
+                        target_file = f
+                        break
+                    if not target_file:
+                        target_file = f
+            if not target_file and data['files']:
+                target_file = data['files'][0]
+            
+            if target_file:
+                fid = target_file['id']
+                fname = target_file.get('name', f'movie_{target_quality}.mkv')
+                dl_url = f"https://pixeldrain.com/api/file/{fid}?download"
+                return {
+                    "success": True,
+                    "download_url": dl_url,
+                    "filename": fname,
+                    "quality": target_quality,
+                    "source": "PixelDrain Cloud Direct Storage",
+                    "error": None
+                }
+    except Exception as ex:
+        logger.warning(f"Pixeldrain list resolution failed for {url}: {ex}")
+    return None
+
+
 def resolve_movie_direct_download(
     source_url: str,
     target_quality: str = "1080p",
@@ -178,6 +234,14 @@ def resolve_movie_direct_download(
         }
         download_cache.set(cache_key, res, ttl=1800)
         return res
+
+    # Check if fallback_url or source_url is a PixelDrain cloud link
+    for check_u in [fallback_url, source_url]:
+        if check_u and 'pixeldrain.com' in check_u:
+            pix_res = resolve_pixeldrain(check_u, target_quality=target_quality)
+            if pix_res:
+                download_cache.set(cache_key, pix_res, ttl=3600)
+                return pix_res
 
     # If fallback is already a direct drive or file link, verify and use it
     if fallback_url and ('drive.google.com' in fallback_url or 'r2.cloudflarestorage.com' in fallback_url):
@@ -329,8 +393,24 @@ def resolve_movie_direct_download(
         if not all_candidate_urls:
             raise Exception("Step 6: Direct server link not available for this title.")
 
+        # Check for instant PixelDrain direct storage candidates first
+        for cand in all_candidate_urls:
+            if 'pixeldrain.com' in cand:
+                pix_res = resolve_pixeldrain(cand, target_quality=target_quality)
+                if pix_res:
+                    download_cache.set(cache_key, pix_res, ttl=3600)
+                    logger.info(f"Resolved instant PixelDrain candidate URL for {target_quality}: {pix_res['download_url']}")
+                    return pix_res
+
         # Prioritize live technews24.site domain mirrors over dead/timing out technews24.me mirrors (cap at top 2)
-        candidate_urls = sorted(all_candidate_urls, key=lambda u: (0 if 'technews24.site' in u else 1))[:2]
+        candidate_urls = sorted(
+            all_candidate_urls,
+            key=lambda u: (
+                0 if 'pixeldrain' in u else
+                1 if 'google.com' in u or 'storage' in u or 'r2.' in u else
+                2 if 'technews24.site' in u else 3
+            )
+        )[:2]
 
         # Step 7: Resolve candidate link to Cloudflare R2
         for cand_url in candidate_urls:

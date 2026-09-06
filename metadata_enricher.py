@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional
 logger = logging.getLogger(__name__)
 
 HEADERS = {
-    'User-Agent': 'JustFlix/1.0 (https://justyflix.onrender.com; contact@justyflix.com)'
+    'User-Agent': 'JustFlix/1.0 (https://justflix.onrender.com; contact@justflix.com)'
 }
 
 _METADATA_CACHE: Dict[str, Dict[str, Any]] = {}

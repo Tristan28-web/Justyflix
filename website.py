@@ -577,6 +577,19 @@ def movie_detail(movie_id):
     if not movie:
         abort(404)
 
+    # On-the-fly metadata enrichment: Real Director, Starring cast, and Plot Synopsis
+    from metadata_enricher import enrich_movie_record, is_placeholder_description
+    cur_dir = str(movie.get('director') or '').strip()
+    cur_cast = str(movie.get('cast') or '').strip()
+    cur_desc = str(movie.get('description') or '').strip()
+
+    if not cur_dir or cur_dir.lower() in ('unknown', 'n/a', 'none') or not cur_cast or cur_cast.lower() in ('unknown', 'n/a', 'none') or is_placeholder_description(cur_desc):
+        try:
+            movie = enrich_movie_record(movie)
+            db.save_movie(movie)
+        except Exception as ex:
+            logger.warning(f"On-demand metadata enrichment failed for {movie_id}: {ex}")
+
     # On-the-fly detail and Google Drive links enrichment if not yet deep-scraped
     if (not movie.get('download_links') or len(movie['download_links']) == 0) and movie.get('source_url'):
         try:

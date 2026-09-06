@@ -378,17 +378,37 @@ def resolve_movie_direct_download(
         html6 = urllib.request.urlopen(req6, timeout=timeout).read().decode('utf-8', errors='ignore')
         soup6 = BeautifulSoup(html6, 'html.parser')
 
-        chosen_gds_url = None
-        best_gds_url = None
-        alt_server_urls = []
+        res_m = re.search(r'\b(2160p|1080p|720p|480p|360p|4k)\b', target_quality, re.I)
+        res_token = res_m.group(1).lower() if res_m else '1080p'
+        is_hevc = 'hevc' in target_quality.lower()
+
+        # Step 6: Fetch links page & select matching quality candidate link
+        req6 = urllib.request.Request(links_page_url, headers={**HEADERS, 'Referer': 'https://freethemesy.shop/'})
+        html6 = urllib.request.urlopen(req6, timeout=timeout).read().decode('utf-8', errors='ignore')
+        soup6 = BeautifulSoup(html6, 'html.parser')
 
         all_candidate_urls = []
-        for a in soup6.find_all('a'):
-            label = a.get_text().strip().upper()
-            href = a.get('href')
-            if href and href.startswith('http'):
-                if any(k in label for k in ['GDS', 'GDRIVE', 'DRIVE', '1FI', 'MEGA', 'UTB', 'TRNSIT', 'PXD']):
-                    all_candidate_urls.append(href)
+        
+        # 1. Scoped search inside <p> paragraphs matching target_quality token (e.g. 1080p, 720p, 480p)
+        for p in soup6.find_all('p'):
+            p_text = p.get_text().lower()
+            if res_token in p_text:
+                if not is_hevc or 'hevc' in p_text:
+                    for a in p.find_all('a'):
+                        label = a.get_text().strip().upper()
+                        href = a.get('href')
+                        if href and href.startswith('http') and href not in all_candidate_urls:
+                            if any(k in label for k in ['GDS', 'GDRIVE', 'DRIVE', '1FI', 'MEGA', 'UTB', 'TRNSIT', 'PXD']):
+                                all_candidate_urls.append(href)
+
+        # 2. Fallback to general search if no paragraph explicitly matched
+        if not all_candidate_urls:
+            for a in soup6.find_all('a'):
+                label = a.get_text().strip().upper()
+                href = a.get('href')
+                if href and href.startswith('http') and href not in all_candidate_urls:
+                    if any(k in label for k in ['GDS', 'GDRIVE', 'DRIVE', '1FI', 'MEGA', 'UTB', 'TRNSIT', 'PXD']):
+                        all_candidate_urls.append(href)
 
         if not all_candidate_urls:
             raise Exception("Step 6: Direct server link not available for this title.")

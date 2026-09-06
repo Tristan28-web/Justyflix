@@ -604,6 +604,13 @@ def download_movie(movie_id, link_idx):
         fallback_url = target_link.get('url') or target_link.get('original_url', '')
         file_id = target_link.get('file_id', '')
 
+        # 0ms Fast Path: Serve pre-resolved Cloudflare R2 / PixelDrain CDN URL from Supabase if present
+        cached_r2 = target_link.get("resolved_r2_url")
+        if cached_r2 and (cached_r2.startswith("http") or cached_r2.startswith("magnet:")):
+            if verify_r2_url(cached_r2, timeout=2.5):
+                logger.info(f"Serving pre-resolved R2 CDN link directly for {movie_id} [{quality}]")
+                return redirect(cached_r2, code=302)
+
         # ── FAST PATH ────────────────────────────────────────────────────────
         # If ALL download links are blog.php shortlinks (MWLBD/fojik format),
         # the multi-step resolver chain will time out on Render's US servers
@@ -619,7 +626,7 @@ def download_movie(movie_id, link_idx):
             for lnk in links
         )
 
-        if all_blog_php and not has_direct_links:
+        if all_blog_php and not has_direct_links and not cached_r2:
             logger.info(f"Fast-path: all links are blog.php for {movie_id}. Redirecting to source page.")
             source_page = movie.get('source_url') or ''
             if source_page and source_page.startswith('http'):
@@ -654,13 +661,11 @@ def download_movie(movie_id, link_idx):
 
         if not res.get('success') or not res.get('download_url'):
             logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Utilizing safe source fallback.")
-            # Try: 1) raw link URL, 2) fojik source page, 3) movie detail page
             fallback_target = target_link.get('url') or ''
             source_page = movie.get('source_url') or ''
-            if fallback_target and fallback_target.startswith('http') and 'blog.php' not in fallback_target:
+            if fallback_target and (fallback_target.startswith('magnet:') or (fallback_target.startswith('http') and 'blog.php' not in fallback_target)):
                 return redirect(fallback_target, code=302)
-            if source_page and source_page.startswith('http') and 'fojik.site' in source_page:
-                # Redirect to the original source page so the user can manually download
+            if source_page and source_page.startswith('http'):
                 return redirect(source_page, code=302)
             return redirect(url_for('movie_detail', movie_id=movie_id))
 

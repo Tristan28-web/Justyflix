@@ -4,6 +4,7 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from config import Config, setup_logger
 from scrapers.base_scraper import BaseScraper
+from metadata_enricher import clean_display_title
 
 logger = setup_logger('1337x_scraper')
 
@@ -71,10 +72,10 @@ class X1337Scraper(BaseScraper):
             td_size = row.select_one('td.size, td.coll-4')
             size_text = td_size.text.strip() if td_size else ""
 
-            clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|2160p.*|4k.*|\[.*?\]|\(.*?\)', '', raw_text, flags=re.IGNORECASE).strip(' -:|')
+            clean_title = clean_display_title(raw_text)
             if not clean_title:
                 slug = href.strip('/').split('/')[-1]
-                clean_title = slug.replace('-', ' ').title()
+                clean_title = clean_display_title(slug.replace('-', ' '))
 
             year_m = re.search(r'\b(202[4-9]|203[0-9])\b', raw_text)
             year = year_m.group(1) if year_m else "2026"
@@ -110,10 +111,10 @@ class X1337Scraper(BaseScraper):
         title_elem = soup.find('h1') or soup.select_one('.box-info-heading h1')
         raw_title = title_elem.text.strip() if title_elem else ""
 
-        clean_title = re.sub(r'Dual Audio.*|WEB-DL.*|HDRip.*|NF.*|480p.*|720p.*|1080p.*|2160p.*|4k.*|\[.*?\]|\(.*?\)', '', raw_title, flags=re.IGNORECASE).strip(' -:|')
+        clean_title = clean_display_title(raw_title)
         if not clean_title:
             slug = movie_url.strip('/').split('/')[-1]
-            clean_title = slug.replace('-', ' ').title()
+            clean_title = clean_display_title(slug.replace('-', ' '))
 
         year_match = re.search(r'\b(202[4-9]|203[0-9])\b', raw_title)
         year = year_match.group(1) if year_match else "2026"

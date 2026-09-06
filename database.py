@@ -375,6 +375,12 @@ class JSONDatabase:
             logger.warning(f"Rejected movie '{movie.get('title')}': not a 2026+ release.")
             return None
 
+        try:
+            from metadata_enricher import enrich_movie_record
+            movie = enrich_movie_record(dict(movie))
+        except Exception as enrich_err:
+            logger.debug(f"save_movie metadata enrichment fallback: {enrich_err}")
+
         with _db_lock:
             data = self._read_data()
             movie_id = str(movie["id"])
@@ -417,6 +423,12 @@ class JSONDatabase:
         """
         if not movies_list:
             return 0
+
+        try:
+            from metadata_enricher import enrich_movie_record
+            movies_list = [enrich_movie_record(dict(m)) for m in movies_list]
+        except Exception as enrich_err:
+            logger.debug(f"save_movies_batch enrichment fallback: {enrich_err}")
 
         with _db_lock:
             data = self._read_data()

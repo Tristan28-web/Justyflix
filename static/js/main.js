@@ -125,15 +125,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const markAllBtn = document.getElementById('markAllNotificationsReadBtn');
   const toastContainer = document.getElementById('notificationToastContainer');
 
-  const STORAGE_SEEN_KEY = 'justyflix_seen_movie_ids_v1';
-  const STORAGE_LAST_SCRAPE_KEY = 'justyflix_last_scrape_ts';
+  const STORAGE_SEEN_KEY = 'justflix_seen_movie_ids_v1';
+  const STORAGE_LAST_SCRAPE_KEY = 'justflix_last_scrape_ts';
 
   let currentNotifications = [];
   let isCheckingNotifications = false;
 
   const getSeenIds = () => {
     try {
-      return JSON.parse(localStorage.getItem(STORAGE_SEEN_KEY) || '[]');
+      const stored = localStorage.getItem(STORAGE_SEEN_KEY) || localStorage.getItem('justyflix_seen_movie_ids_v1');
+      return JSON.parse(stored || '[]');
     } catch (e) {
       return [];
     }

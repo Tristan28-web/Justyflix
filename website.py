@@ -275,10 +275,10 @@ def track_site_traffic():
     # Ignore static files, favicon, health checks, and all API endpoints to keep stats pure
     if p.startswith('/static') or p == '/favicon.ico' or p.startswith('/api/') or p.startswith('/health'):
         return
-    vid = request.cookies.get('justy_vid')
+    vid = request.cookies.get('justflix_vid') or request.cookies.get('justy_vid')
     is_new, v_hash, _ = tracker.record_visit(request, vid_cookie=vid)
-    request._justy_vid_cookie = vid or v_hash
-    request._justy_is_new = is_new
+    request._justflix_vid_cookie = vid or v_hash
+    request._justflix_is_new = is_new
 
 
 @app.after_request
@@ -287,9 +287,9 @@ def set_visitor_cookie(response):
     Sets persistent 1-year visitor identifier cookie to prevent duplicate new-visitor alerts
     when users browse multiple pages.
     """
-    vid_cookie = getattr(request, '_justy_vid_cookie', None)
-    if vid_cookie and not request.cookies.get('justy_vid'):
-        response.set_cookie('justy_vid', vid_cookie, max_age=31536000, httponly=True, samesite='Lax')
+    vid_cookie = getattr(request, '_justflix_vid_cookie', None)
+    if vid_cookie and not request.cookies.get('justflix_vid'):
+        response.set_cookie('justflix_vid', vid_cookie, max_age=31536000, httponly=True, samesite='Lax')
     return response
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -310,7 +310,7 @@ MWLBD_CATEGORIES = [
 ]
 
 
-# Justyflix UI Navigation & Genre Pills
+# JustFlix UI Navigation & Genre Pills
 NETFLIX_GENRES = [
     "All", "Hollywood", "Bollywood", "Action", "Adventure", "Comedy", "Crime",
     "Drama", "Dual Audio", "Horror", "Sci-Fi", "Thriller", "Anime", "Series"
@@ -333,7 +333,7 @@ def inject_nav_context():
 # Web Routes
 @app.route('/')
 def home():
-    """Home page displaying Justyflix cinematic hero, category carousels, and movie grid."""
+    """Home page displaying JustFlix cinematic hero, category carousels, and movie grid."""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 30, type=int)
     query = request.args.get('q', '').strip()
@@ -376,7 +376,7 @@ def home():
     stats = db.get_stats()
     all_movies = db.get_all_movies()
 
-    # Curate top featured movies for Justyflix Billboard Hero Slider
+    # Curate top featured movies for JustFlix Billboard Hero Slider
     def sanitize_synopsis(desc, title):
         if not desc:
             return f"{title} (2026) - A brand new cinematic release with instant streaming and high-speed cloud access."
@@ -485,7 +485,7 @@ _TRAILER_CACHE: Dict[str, str] = {}
 
 @app.route('/favicon.ico')
 def favicon():
-    """Serves the Justyflix capital J red square favicon."""
+    """Serves the JustFlix capital J red square favicon."""
     return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
 
 
@@ -746,7 +746,7 @@ def download_movie(movie_id, link_idx):
             fallback_target = target_link.get('url') or ''
             if fallback_target and (fallback_target.startswith('magnet:') or (fallback_target.startswith('http') and 'blog.php' not in fallback_target and 'fojik' not in fallback_target)):
                 return redirect(fallback_target, code=302)
-            # NEVER redirect to fojik.site — always keep user on Justyflix movie page with informative alert
+            # NEVER redirect to fojik.site — always keep user on JustFlix movie page with informative alert
             flash(f"Direct cloud mirror for {quality} is temporarily updating or busy. Please try another quality or retry shortly.", "warning")
             return redirect(url_for('movie_detail', movie_id=movie_id))
 
@@ -882,7 +882,7 @@ def api_resolve_download(movie_id, link_idx):
                 "direct_cdn_url": res['download_url'],
                 "filename": res.get('filename', f"{movie.get('title', 'Movie')}_{quality}.mkv"),
                 "quality": quality,
-                "source": "Justyflix Auto-Audio Stream (English Default)"
+                "source": "JustFlix Auto-Audio Stream (English Default)"
             }), 200
         else:
             return jsonify({
@@ -1216,6 +1216,7 @@ def is_monitor_authorized(req) -> bool:
         return True
     provided_key = (
         req.args.get('key') or
+        req.cookies.get('justflix_monitor_key') or
         req.cookies.get('justy_monitor_key') or
         req.headers.get('X-Monitor-Key') or
         req.form.get('key') or
@@ -1228,7 +1229,7 @@ def is_monitor_authorized(req) -> bool:
 @app.route('/monitor', methods=['GET', 'POST'])
 def monitor_dashboard():
     """
-    Dedicated Standalone Justyflix Monitoring & Security Portal.
+    Dedicated Standalone JustFlix Monitoring & Security Portal.
     Completely decoupled from the public website with standalone UI and security access key gate.
     """
     expected_key = (os.environ.get('MONITOR_ACCESS_KEY') or Config.MONITOR_ACCESS_KEY or '').strip()
@@ -1236,6 +1237,7 @@ def monitor_dashboard():
     # If lock is requested via query param, clear authentication cookie
     if request.args.get('lock'):
         resp = make_response(redirect('/monitor'))
+        resp.delete_cookie('justflix_monitor_key')
         resp.delete_cookie('justy_monitor_key')
         return resp
 
@@ -1245,7 +1247,7 @@ def monitor_dashboard():
             submitted_key = request.form.get('key', '').strip()
             if submitted_key == expected_key:
                 resp = make_response(redirect('/monitor'))
-                resp.set_cookie('justy_monitor_key', expected_key, max_age=86400 * 30, httponly=True, samesite='Lax')
+                resp.set_cookie('justflix_monitor_key', expected_key, max_age=86400 * 30, httponly=True, samesite='Lax')
                 return resp
             else:
                 auth_error = "Invalid Security Access Key."
@@ -1265,7 +1267,7 @@ def monitor_dashboard():
 
     # If key was passed in URL query param, automatically persist in cookie for subsequent visits
     if expected_key and request.args.get('key') == expected_key:
-        resp.set_cookie('justy_monitor_key', expected_key, max_age=86400 * 30, httponly=True, samesite='Lax')
+        resp.set_cookie('justflix_monitor_key', expected_key, max_age=86400 * 30, httponly=True, samesite='Lax')
 
     return resp
 

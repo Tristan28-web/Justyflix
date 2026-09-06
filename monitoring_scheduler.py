@@ -106,7 +106,7 @@ def start_monitoring_scheduler():
             t = threading.Thread(
                 target=_scheduler_loop,
                 daemon=True,
-                name="Justyflix24hReportScheduler"
+                name="JustFlix24hReportScheduler"
             )
             t.start()
-            logger.info("Successfully launched Justyflix 24-hour report scheduler thread.")
+            logger.info("Successfully launched JustFlix 24-hour report scheduler thread.")

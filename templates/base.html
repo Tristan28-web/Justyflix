@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Justyflix - Stream & Download Movies{% endblock %}</title>
+  <title>{% block title %}JustFlix - Stream & Download Movies{% endblock %}</title>
   <!-- Favicon Icons (Capital J with Red Square Background) -->
   <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='img/favicon.png') }}">
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='img/favicon.svg') }}">
@@ -34,7 +34,7 @@
 
     <!-- Brand Logo -->
     <a href="{{ url_for('home') }}" class="netflix-brand">
-      JUSTYFLIX
+      JUSTFLIX
     </a>
 
     <!-- Mobile Offcanvas Navigation Drawer -->
@@ -45,7 +45,7 @@
       aria-labelledby="netflixMobileNavLabel"
     >
       <div class="offcanvas-header border-bottom border-secondary border-opacity-25 px-3 py-3">
-        <span class="netflix-brand fs-4 mb-0 text-danger" id="netflixMobileNavLabel">JUSTYFLIX</span>
+        <span class="netflix-brand fs-4 mb-0 text-danger" id="netflixMobileNavLabel">JUSTFLIX</span>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
       </div>
       <div class="offcanvas-body p-0">
@@ -231,7 +231,7 @@
       </div>
 
       <!-- Clean User Avatar / VIP Profile -->
-      <div class="d-flex align-items-center" title="Justyflix VIP Member">
+      <div class="d-flex align-items-center" title="JustFlix VIP Member">
         <img
           src="{{ url_for('static', filename='img/vip_avatar.jpg') }}"
           alt="VIP Profile"
@@ -262,13 +262,13 @@
     {% block content %}{% endblock %}
   </main>
 
-  <!-- Minimalist Justyflix Footer -->
+  <!-- Minimalist JustFlix Footer -->
   <footer class="netflix-footer py-4">
     <div class="netflix-footer-container">
       <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2 text-secondary small">
-        <span>&copy; 2026 Justyflix. All rights reserved. Cloud Stream & Downloader.</span>
+        <span>&copy; 2026 JustFlix. All rights reserved. Cloud Stream & Downloader.</span>
         <span class="netflix-footer-disclaimer m-0 text-center text-md-end">
-          Justyflix does not store or host video files on its servers. Content is indexed via public cloud mirrors.
+          JustFlix does not store or host video files on its servers. Content is indexed via public cloud mirrors.
         </span>
       </div>
     </div>

@@ -156,7 +156,8 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-/* Justyflix Profile Dropdown */
+/* JustFlix Profile Dropdown */
+.justflix-profile-menu,
 .justyflix-profile-menu {
   background-color: #161616 !important;
   border: 1px solid rgba(255, 255, 255, 0.15) !important;
@@ -167,10 +168,12 @@ body {
   margin-top: 0.6rem !important;
 }
 
+.justflix-profile-header,
 .justyflix-profile-header {
   background-color: #1f1f1f;
 }
 
+.justflix-dropdown-item,
 .justyflix-dropdown-item {
   color: #e5e5e5 !important;
   text-decoration: none;
@@ -182,6 +185,7 @@ body {
   transition: all 0.2s ease;
 }
 
+.justflix-dropdown-item:hover,
 .justyflix-dropdown-item:hover {
   background-color: rgba(255, 255, 255, 0.08);
   color: #ffffff !important;
@@ -1243,7 +1247,7 @@ body {
 }
 
 /* ==========================================================================
-   JUSTYFLIX FOOTER LAYOUT & READINESS
+   JUSTFLIX FOOTER LAYOUT & READINESS
    ========================================================================== */
 
 .netflix-footer {

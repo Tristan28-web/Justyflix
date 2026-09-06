@@ -31,7 +31,7 @@ def get_telegram_config() -> tuple[str, str]:
     if token and not chat_id:
         try:
             url = f"https://api.telegram.org/bot{token}/getUpdates"
-            req = urllib.request.Request(url, headers={'User-Agent': 'JustyflixMonitor/1.0'})
+            req = urllib.request.Request(url, headers={'User-Agent': 'JustFlixMonitor/1.0'})
             with urllib.request.urlopen(req, timeout=5) as resp:
                 data = json.loads(resp.read().decode('utf-8'))
                 results = data.get('result', [])
@@ -89,7 +89,7 @@ def send_telegram_message(text: str, parse_mode: str = 'HTML', timeout: int = 10
             data=data,
             headers={
                 'Content-Type': 'application/x-www-form-urlencoded',
-                'User-Agent': 'JustyflixMonitor/1.0'
+                'User-Agent': 'JustFlixMonitor/1.0'
             }
         )
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -123,7 +123,7 @@ def send_telegram_message_async(text: str, parse_mode: str = 'HTML') -> None:
 
 def send_new_visitor_alert(visitor_data: Dict[str, Any]) -> None:
     """
-    Immediately alerts the Telegram bot when a genuine NEW user lands on Justyflix.
+    Immediately alerts the Telegram bot when a genuine NEW user lands on JustFlix.
     Runs asynchronously to ensure zero impact on user request latency.
     """
     if not is_telegram_configured():
@@ -139,7 +139,7 @@ def send_new_visitor_alert(visitor_data: Dict[str, Any]) -> None:
     timestamp = visitor_data.get('timestamp') or datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
 
     msg = (
-        f"<b>[JUSTYFLIX TELEMETRY] NEW VISITOR DETECTED</b>\n"
+        f"<b>[JUSTFLIX TELEMETRY] NEW VISITOR DETECTED</b>\n"
         f"───────────────────────────────\n"
         f"<b>IP Address:</b> <code>{ip}</code> ({country})\n"
         f"<b>Client:</b> {device} | {os_name} | {browser}\n"
@@ -147,7 +147,7 @@ def send_new_visitor_alert(visitor_data: Dict[str, Any]) -> None:
         f"<b>Referrer:</b> {referrer}\n"
         f"<b>Timestamp:</b> {timestamp}\n"
         f"───────────────────────────────\n"
-        f"<i>Automated alert dispatched by Justyflix Analytics Service.</i>"
+        f"<i>Automated alert dispatched by JustFlix Analytics Service.</i>"
     )
     send_telegram_message_async(msg)
 
@@ -202,7 +202,7 @@ def send_daily_summary_report(stats: Dict[str, Any]) -> bool:
     ref_text = "\n".join(ref_lines)
 
     msg = (
-        f"<b>[JUSTYFLIX] 24-HOUR ANALYTICS SUMMARY REPORT</b>\n"
+        f"<b>[JUSTFLIX] 24-HOUR ANALYTICS SUMMARY REPORT</b>\n"
         f"<b>Reporting Period:</b> 24 Hours Ending {now_str}\n"
         f"───────────────────────────────\n"
         f"<b>TRAFFIC & USER METRICS</b>\n"
@@ -239,7 +239,7 @@ def test_telegram_connection() -> Dict[str, Any]:
         }
 
     test_msg = (
-        f"<b>[JUSTYFLIX TELEMETRY] CONNECTION VERIFICATION</b>\n"
+        f"<b>[JUSTFLIX TELEMETRY] CONNECTION VERIFICATION</b>\n"
         f"───────────────────────────────\n"
         f"<b>Status:</b> Operational\n"
         f"<b>Timestamp:</b> {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}\n"

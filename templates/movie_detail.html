@@ -124,11 +124,20 @@
         <div class="d-flex gap-2 align-items-center flex-wrap">
           {% if link.type == 'magnet' or (link.url and link.url.startswith('magnet:')) %}
           <a
+            href="https://webtor.io/show?magnet={{ link.url | urlencode }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-danger fw-bold text-white py-2 px-3 d-inline-flex align-items-center gap-2"
+            title="Download Movie via Webtor Direct Cloud"
+          >
+            <i class="bi bi-cloud-arrow-down-fill me-1"></i> Direct Download via Webtor
+          </a>
+          <a
             href="{{ link.url }}"
             class="btn btn-outline-danger fw-bold text-white py-2 px-3 d-inline-flex align-items-center gap-2"
             title="Download Full Movie via P2P Magnet"
           >
-            <i class="bi bi-magnet-fill"></i> Magnet Link (Full P2P Movie)
+            <i class="bi bi-magnet-fill"></i> Magnet Link (P2P Client)
           </a>
           <button
             type="button"

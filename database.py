@@ -1073,8 +1073,8 @@ class SupabaseDatabase:
 
 
 # Dynamic Database Instance Selection
-_sb_url = os.environ.get("SUPABASE_URL")
-_sb_key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+_sb_url = os.environ.get("SUPABASE_URL", "https://zjrwspwzgyqeriookjlp.supabase.co")
+_sb_key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY") or "sb_publishable_njODP4vTq-eMum3HPCoy-g_xaMnCkL3"
 
 if _sb_url and _sb_key:
     try:
@@ -1086,4 +1086,5 @@ if _sb_url and _sb_key:
 else:
     logger.info("SUPABASE_URL / SUPABASE_KEY not set. Operating with JSONDatabase driver.")
     db = JSONDatabase()
+
 

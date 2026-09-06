@@ -17,6 +17,24 @@ app.config['SECRET_KEY'] = Config.SECRET_KEY
 CORS(app)
 
 
+def is_valid_quality_cached_r2(cached_url: str, target_quality: str) -> bool:
+    """Ensure pre-resolved R2 URL matches requested quality (e.g. prevent serving 480p for 1080p)."""
+    if not cached_url or not isinstance(cached_url, str):
+        return False
+    url_lower = cached_url.lower()
+    q_lower = str(target_quality).lower()
+    
+    # Reject 480p files when 1080p, 720p, or HEVC was requested
+    if ('1080' in q_lower or '720' in q_lower or 'hevc' in q_lower) and ('480p' in url_lower or '.480.' in url_lower):
+        logger.warning(f"Quality Guard rejected mismatched 480p cached link for requested '{target_quality}'")
+        return False
+    if '1080' in q_lower and ('720p' in url_lower or '.720.' in url_lower):
+        logger.warning(f"Quality Guard rejected 720p cached link for requested 1080p quality '{target_quality}'")
+        return False
+    return True
+
+
+
 def seed_initial_data_if_empty():
     """Populates database with initial 2026 showcase releases if empty."""
     stats = db.get_stats()
@@ -607,7 +625,7 @@ def download_movie(movie_id, link_idx):
         # 0ms Fast Path: Serve pre-resolved Cloudflare R2 / PixelDrain CDN URL from Supabase if present
         cached_r2 = target_link.get("resolved_r2_url")
         if cached_r2 and (cached_r2.startswith("http") or cached_r2.startswith("magnet:")):
-            if verify_r2_url(cached_r2, timeout=2.5):
+            if is_valid_quality_cached_r2(cached_r2, quality) and verify_r2_url(cached_r2, timeout=2.5):
                 logger.info(f"Serving pre-resolved R2 CDN link directly for {movie_id} [{quality}]")
                 return redirect(cached_r2, code=302)
 
@@ -853,7 +871,7 @@ def api_start_resolve(movie_id, link_idx):
         # 0ms Fast Path: If direct Cloudflare R2 / PixelDrain link is pre-resolved in database
         cached_r2 = target_link.get("resolved_r2_url")
         if cached_r2 and (cached_r2.startswith("http") or cached_r2.startswith("magnet:")):
-            if verify_r2_url(cached_r2, timeout=2.5):
+            if is_valid_quality_cached_r2(cached_r2, quality) and verify_r2_url(cached_r2, timeout=2.5):
                 logger.info(f"Serving pre-resolved instant R2 CDN download URL for {movie_id} [{quality}]")
                 return jsonify({
                     "status": "instant",

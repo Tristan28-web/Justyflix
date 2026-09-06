@@ -118,22 +118,12 @@
         <!-- Download Buttons -->
         <div class="d-flex gap-2 align-items-center flex-wrap">
           {% if link.type == 'magnet' or (link.url and link.url.startswith('magnet:')) %}
-          <button
-            type="button"
-            class="btn btn-danger fw-bold text-white py-2 px-3 d-inline-flex align-items-center gap-2 js-webtor-play"
-            data-magnet="{{ link.url }}"
-            data-title="{{ movie.title }}"
-            data-bs-toggle="modal"
-            data-bs-target="#webtorModal"
-          >
-            <i class="bi bi-play-circle-fill fs-5"></i> Instant Web Stream / Download
-          </button>
           <a
             href="{{ link.url }}"
             class="btn btn-outline-danger fw-bold text-white py-2 px-3 d-inline-flex align-items-center gap-2"
             title="Download Full Movie via P2P Magnet"
           >
-            <i class="bi bi-magnet-fill"></i> Magnet Link (P2P Client)
+            <i class="bi bi-magnet-fill"></i> Magnet Link (Full P2P Movie)
           </a>
           <button
             type="button"
@@ -187,75 +177,13 @@
         src="{{ preview_link.preview_url }}"
         allow="autoplay; fullscreen"
         allowfullscreen
-      ></iframe>
-    </div>
   </div>
   {% endif %}
-
-  <!-- Webtor Stream Modal -->
-  <div class="modal fade" id="webtorModal" tabindex="-1" aria-labelledby="webtorModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-xl modal-dialog-centered">
-      <div class="modal-content bg-dark text-white border-0 shadow-lg" style="background-color: #181818 !important; border-radius: 12px;">
-        <div class="modal-header border-secondary">
-          <h5 class="modal-title fw-bold" id="webtorModalLabel">
-            <i class="bi bi-play-circle-fill text-danger me-2"></i> Instant Web Direct Stream & Download
-          </h5>
-          <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body p-0">
-          <div id="webtorPlayerContainer" class="ratio ratio-16x9 bg-black">
-            <div class="d-flex align-items-center justify-content-center h-100 text-secondary">
-              <span class="spinner-border spinner-border-sm me-2"></span> Initializing torrent stream engine...
-            </div>
-          </div>
-        </div>
-        <div class="modal-footer border-secondary justify-content-between">
-          <span class="text-secondary small">Powered by Justyflix In-Browser Torrent Engine</span>
-          <button type="button" class="btn btn-outline-secondary text-light" data-bs-dismiss="modal">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/@webtor/embed-sdk-js/dist/index.min.js" charset="utf-8" async></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-  const webtorBtns = document.querySelectorAll('.js-webtor-play');
-  webtorBtns.forEach(btn => {
-    btn.addEventListener('click', function() {
-      const magnet = this.getAttribute('data-magnet');
-      const title = this.getAttribute('data-title');
-      const container = document.getElementById('webtorPlayerContainer');
-      document.getElementById('webtorModalLabel').innerHTML = `<i class="bi bi-play-circle-fill text-danger me-2"></i> ${title} — Instant Stream`;
-      
-      container.innerHTML = '';
-      const playerEl = document.createElement('div');
-      playerEl.id = 'webtorPlayer';
-      container.appendChild(playerEl);
-
-      if (window.webtor) {
-        window.webtor.push({
-          id: 'webtorPlayer',
-          magnet: magnet,
-          on: function(e) {
-            if (e.name == window.webtor.TORRENT_FETCHED) {
-              console.log('Webtor torrent fetched:', e.data);
-            }
-          },
-          features: {
-            continue: true,
-            title: true,
-            p2p: true,
-          },
-        });
-      } else {
-        container.innerHTML = `<iframe src="https://webtor.io/show?magnet=${encodeURIComponent(magnet)}" style="width:100%;height:100%;border:0;" allowfullscreen></iframe>`;
-      }
-    });
-  });
 
   const downloadBtns = document.querySelectorAll('.js-download-btn');
   downloadBtns.forEach(btn => {

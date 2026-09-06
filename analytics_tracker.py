@@ -179,11 +179,26 @@ def generate_visitor_hash(ip: str, ua: str, vid_cookie: Optional[str] = None) ->
 
 
 def is_static_or_monitoring_request(path: str) -> bool:
-    """Filters out internal polling, health checks, and static asset requests."""
+    """Filters out internal polling, API calls, health checks, and static asset requests."""
     p = path.lower()
-    if any(p.startswith(pref) for pref in ['/static', '/favicon', '/robots.txt', '/api/monitor', '/api/resolve-status']):
+    if any(p.startswith(pref) for pref in ['/static', '/favicon', '/robots.txt', '/api/', '/health', '/healthz']):
         return True
     if any(p.endswith(ext) for ext in ['.css', '.js', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.svg', '.map']):
+        return True
+    return False
+
+
+def is_bot_or_health_check(ip: str, ua: str) -> bool:
+    """Filters out automated cloud health checks, uptime probes, and web crawlers."""
+    if ip in ('127.0.0.1', '::1', 'localhost'):
+        return True
+    ua_l = (ua or '').lower()
+    bot_markers = [
+        'bot', 'crawl', 'spider', 'render/', 'uptime', 'pingdom',
+        'google-cloud', 'go-http-client', 'kube-probe', 'curl', 'wget',
+        'python-requests', 'headless', 'postman'
+    ]
+    if any(marker in ua_l for marker in bot_markers):
         return True
     return False
 
@@ -206,6 +221,13 @@ class AnalyticsTracker:
         if is_static_or_monitoring_request(path):
             return False, "", {}
 
+        ip = get_client_ip(req)
+        ua = req.headers.get('User-Agent', '')
+
+        # Filter out local loopbacks and cloud healthcheck probes
+        if is_bot_or_health_check(ip, ua):
+            return False, "", {}
+
         now_ts = time.time()
         now_iso = datetime.utcnow().isoformat()
         now_dt_str = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
@@ -215,7 +237,6 @@ class AnalyticsTracker:
             _pageviews_24h_counter = 0
             _last_pageview_reset = now_ts
 
-        ip = get_client_ip(req)
         ip_masked = mask_ip(ip)
         ua = req.headers.get('User-Agent', '')
         country = req.headers.get('CF-IPCountry') or req.headers.get('X-Country-Code') or 'Global'

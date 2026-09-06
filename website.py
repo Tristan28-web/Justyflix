@@ -272,8 +272,8 @@ def track_site_traffic():
     Dispatches an automatic Telegram alert whenever a NEW unique user accesses the site.
     """
     p = request.path
-    # Ignore static files, favicon, and internal monitoring polling to keep stats pure
-    if p.startswith('/static') or p == '/favicon.ico' or p.startswith('/api/monitor'):
+    # Ignore static files, favicon, health checks, and all API endpoints to keep stats pure
+    if p.startswith('/static') or p == '/favicon.ico' or p.startswith('/api/') or p.startswith('/health'):
         return
     vid = request.cookies.get('justy_vid')
     is_new, v_hash, _ = tracker.record_visit(request, vid_cookie=vid)

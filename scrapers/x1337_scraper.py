@@ -15,7 +15,7 @@ class X1337Scraper(BaseScraper):
     """
 
     def __init__(self, base_url: Optional[str] = None):
-        target_url = (base_url or getattr(Config, 'X1337_BASE_URL', 'https://1337x.to')).rstrip('/')
+        target_url = (base_url or getattr(Config, 'X1337_BASE_URL', 'https://1337xx.to')).rstrip('/')
         super().__init__(provider_name="1337x Torrent Index", base_url=target_url)
 
     def get_total_catalog_pages(self) -> int:
@@ -28,8 +28,8 @@ class X1337Scraper(BaseScraper):
         logger.info(f"Scraping 1337x catalog page {page_num}: {page_url}")
         html = self._fetch_url(page_url)
         if not html:
-            # Fallback to mirror domain if primary 1337x domain fails
-            mirror_url = f"https://1337x.st/popular-movies" if page_num <= 1 else f"https://1337x.st/sort-search/2026/seeders/desc/{page_num}/"
+            # Fallback to 1337x.is mirror domain if primary domain fails
+            mirror_url = f"https://1337x.is/popular-movies" if page_num <= 1 else f"https://1337x.is/sort-search/2026/seeders/desc/{page_num}/"
             html = self._fetch_url(mirror_url)
             if not html:
                 return []

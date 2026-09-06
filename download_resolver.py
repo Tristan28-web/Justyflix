@@ -163,7 +163,7 @@ def resolve_movie_direct_download(
     target_quality: str = "1080p",
     fallback_url: str = "",
     file_id: str = "",
-    timeout: int = 12,
+    timeout: int = 4,
     force_refresh: bool = False
 ) -> Dict[str, Any]:
     """

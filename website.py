@@ -534,6 +534,29 @@ def download_movie(movie_id, link_idx):
         fallback_url = target_link.get('url') or target_link.get('original_url', '')
         file_id = target_link.get('file_id', '')
 
+        # ── FAST PATH ────────────────────────────────────────────────────────
+        # If ALL download links are blog.php shortlinks (MWLBD/fojik format),
+        # the multi-step resolver chain will time out on Render's US servers
+        # (geo-blocked PHP shortlinker sites). Skip resolver entirely and send
+        # the user straight to the original source page so they can download
+        # directly. This prevents Render's 30-second hard request timeout.
+        all_blog_php = all(
+            'blog.php' in str(lnk.get('url', '')) or 'blog.php' in str(lnk.get('original_url', ''))
+            for lnk in links
+        )
+        has_direct_links = any(
+            any(k in str(lnk.get('url', '')) for k in ['pixeldrain.com', 'r2.cloudflarestorage.com', 'drive.google.com', 'mega.nz'])
+            for lnk in links
+        )
+
+        if all_blog_php and not has_direct_links:
+            logger.info(f"Fast-path: all links are blog.php for {movie_id}. Redirecting to source page.")
+            source_page = movie.get('source_url') or ''
+            if source_page and source_page.startswith('http'):
+                return redirect(source_page, code=302)
+            return redirect(url_for('movie_detail', movie_id=movie_id))
+        # ─────────────────────────────────────────────────────────────────────
+
         try:
             res = resolve_movie_direct_download(
                 source_url=source_url,
@@ -643,58 +666,90 @@ def api_resolve_download(movie_id, link_idx):
     AJAX endpoint for instant download preparation with frontend spinner.
     Returns direct auto-audio download URL with Content-Disposition for local PC download.
     """
-    movie = db.get_movie(movie_id)
-    if not movie:
-        return jsonify({"status": "error", "message": "Movie not found"}), 404
+    try:
+        movie = db.get_movie(movie_id)
+        if not movie:
+            return jsonify({"status": "error", "message": "Movie not found"}), 404
 
-    links = movie.get('download_links', [])
-    if not links or link_idx < 0 or link_idx >= len(links):
-        return jsonify({"status": "error", "message": "Download link not found"}), 404
+        links = movie.get('download_links', [])
+        if not links or link_idx < 0 or link_idx >= len(links):
+            return jsonify({"status": "error", "message": "Download link not found"}), 404
 
-    target_link = links[link_idx]
-    quality = target_link.get('quality') or target_link.get('label') or '1080p'
-    source_url = movie.get('source_url') or target_link.get('url', '')
-    fallback_url = target_link.get('url') or target_link.get('original_url', '')
-    file_id = target_link.get('file_id', '')
+        target_link = links[link_idx]
+        quality = target_link.get('quality') or target_link.get('label') or '1080p'
+        source_url = movie.get('source_url') or target_link.get('url', '')
+        fallback_url = target_link.get('url') or target_link.get('original_url', '')
+        file_id = target_link.get('file_id', '')
 
-    res = resolve_movie_direct_download(
-        source_url=source_url,
-        target_quality=quality,
-        fallback_url=fallback_url,
-        file_id=file_id
-    )
-
-    # If resolved URL fails live verification, force a fresh scrape
-    if res.get('success') and res.get('download_url') and not verify_r2_url(res['download_url'], timeout=3.0):
-        cache_key = f"{source_url}:{quality}:{file_id}"
-        download_cache.delete(cache_key)
-        res = resolve_movie_direct_download(
-            source_url=source_url,
-            target_quality=quality,
-            fallback_url=fallback_url,
-            file_id=file_id,
-            force_refresh=True
+        # Fast-path: if ALL links are blog.php shortlinks, skip resolver and return source page
+        all_blog_php = all(
+            'blog.php' in str(lnk.get('url', '')) or 'blog.php' in str(lnk.get('original_url', ''))
+            for lnk in links
         )
+        has_direct_links = any(
+            any(k in str(lnk.get('url', '')) for k in ['pixeldrain.com', 'r2.cloudflarestorage.com', 'drive.google.com', 'mega.nz'])
+            for lnk in links
+        )
+        if all_blog_php and not has_direct_links:
+            source_page = movie.get('source_url') or ''
+            return jsonify({
+                "status": "success",
+                "download_url": source_page or url_for('movie_detail', movie_id=movie_id),
+                "direct_cdn_url": source_page,
+                "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
+                "quality": quality,
+                "source": "Source Page (fojik.site)"
+            }), 200
 
-    if res.get('success') and res.get('download_url'):
-        download_endpoint = url_for('download_movie', movie_id=movie_id, link_idx=link_idx)
-        return jsonify({
-            "status": "success",
-            "download_url": download_endpoint,
-            "direct_cdn_url": res['download_url'],
-            "filename": res.get('filename', f"{movie.get('title', 'Movie')}_{quality}.mkv"),
-            "quality": quality,
-            "source": "Justyflix Auto-Audio Stream (English Default)"
-        }), 200
-    else:
-        return jsonify({
-            "status": "updating",
-            "download_url": "",
-            "direct_cdn_url": "",
-            "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
-            "quality": quality,
-            "message": "Mirror link currently updating. Please try again in a moment."
-        }), 200
+        try:
+            res = resolve_movie_direct_download(
+                source_url=source_url,
+                target_quality=quality,
+                fallback_url=fallback_url,
+                file_id=file_id
+            )
+        except Exception as re:
+            logger.warning(f"api_resolve_download resolver error: {re}")
+            res = {'success': False, 'download_url': None}
+
+        # If resolved URL fails live verification, force a fresh scrape
+        if res.get('success') and res.get('download_url') and not verify_r2_url(res['download_url'], timeout=3.0):
+            cache_key = f"{source_url}:{quality}:{file_id}"
+            download_cache.delete(cache_key)
+            try:
+                res = resolve_movie_direct_download(
+                    source_url=source_url,
+                    target_quality=quality,
+                    fallback_url=fallback_url,
+                    file_id=file_id,
+                    force_refresh=True
+                )
+            except Exception:
+                res = {'success': False, 'download_url': None}
+
+        if res.get('success') and res.get('download_url'):
+            download_endpoint = url_for('download_movie', movie_id=movie_id, link_idx=link_idx)
+            return jsonify({
+                "status": "success",
+                "download_url": download_endpoint,
+                "direct_cdn_url": res['download_url'],
+                "filename": res.get('filename', f"{movie.get('title', 'Movie')}_{quality}.mkv"),
+                "quality": quality,
+                "source": "Justyflix Auto-Audio Stream (English Default)"
+            }), 200
+        else:
+            return jsonify({
+                "status": "updating",
+                "download_url": "",
+                "direct_cdn_url": "",
+                "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv",
+                "quality": quality,
+                "message": "Mirror link currently updating. Please try again in a moment."
+            }), 200
+
+    except Exception as fatal_err:
+        logger.error(f"Fatal error in api_resolve_download for {movie_id}: {fatal_err}", exc_info=True)
+        return jsonify({"status": "error", "message": "Download resolution failed. Please try again."}), 200
 
 
 @app.route('/scrape')

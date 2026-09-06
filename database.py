@@ -233,6 +233,10 @@ class JSONDatabase:
     def __init__(self, db_path: Optional[str] = None):
         self.db_path = db_path or Config.DATABASE_FILE
         self.backup_dir = Config.BACKUP_DIR
+        # Read cache: avoid re-parsing the large JSON file on every call
+        self._read_cache: Optional[Dict[str, Any]] = None
+        self._read_cache_ts: float = 0.0
+        self._read_cache_ttl: float = 30.0  # seconds
         self.init_db()
 
     def _default_schema(self) -> Dict[str, Any]:
@@ -266,8 +270,13 @@ class JSONDatabase:
         seed_thread.start()
 
     def _read_data(self) -> Dict[str, Any]:
-        """Reads and parses JSON database safely."""
+        """Reads and parses JSON database safely, with a 30-second TTL read cache."""
+        import time as _t
         with _db_lock:
+            now = _t.time()
+            if self._read_cache is not None and (now - self._read_cache_ts) < self._read_cache_ttl:
+                return self._read_cache
+
             if not os.path.exists(self.db_path):
                 return self._default_schema()
             try:
@@ -277,6 +286,8 @@ class JSONDatabase:
                         data["movies"] = {}
                     if "stats" not in data:
                         data["stats"] = {"total": len(data["movies"]), "available": 0, "pending": 0, "last_scrape": None}
+                    self._read_cache = data
+                    self._read_cache_ts = now
                     return data
             except (json.JSONDecodeError, OSError) as e:
                 logger.error(f"Error reading {self.db_path}: {e}. Attempting recovery from backup.")
@@ -284,7 +295,10 @@ class JSONDatabase:
                 if os.path.exists(backup_file):
                     try:
                         with open(backup_file, 'r', encoding='utf-8') as bf:
-                            return json.load(bf)
+                            data = json.load(bf)
+                            self._read_cache = data
+                            self._read_cache_ts = now
+                            return data
                     except Exception as be:
                         logger.error(f"Failed recovery from backup: {be}")
                 return self._default_schema()

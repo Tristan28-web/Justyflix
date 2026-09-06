@@ -272,7 +272,9 @@ def home():
     def enrich_movie(m):
         m_copy = dict(m)
         from database import calculate_authentic_release_date
-        m_copy['formatted_date'] = calculate_authentic_release_date(m_copy)
+        auth_date = calculate_authentic_release_date(m_copy)
+        m_copy['formatted_date'] = auth_date
+        m_copy['release_date'] = auth_date
 
         t = (m_copy.get('title') or '') + ' ' + (m_copy.get('description') or '')
         g = (m_copy.get('genre') or '')

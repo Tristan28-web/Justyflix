@@ -561,40 +561,27 @@ def resolve_movie_direct_download(
                 "error": None
             }
         
-        # Universal Multi-Source Fallback (WebTor Direct Stream / Torrent Search)
-        try:
-            from database import db
-            all_m = db.get_all_movies()
-            m_title = ""
-            for m in all_m:
-                if m.get('source_url') == source_url or file_id in [l.get('file_id') for l in m.get('download_links', [])]:
-                    m_title = m.get('title', '')
-                    break
-            
-            clean_title = re.sub(r'[^a-zA-Z0-9 ]+', '', m_title or 'Movie').strip()
+        # Universal Multi-Source Fallback — only return success if we have a REAL file URL,
+        # NOT a source page URL (fojik.site/movie/...) which would redirect user to an HTML page.
+        real_dl_url = None
+        if fallback_url and fallback_url not in ("https://search.technews24.site/blog.php", ""):
+            if any(k in fallback_url for k in ['pixeldrain.com', 'r2.cloudflarestorage.com', 'drive.google.com', 'mega.nz']):
+                real_dl_url = fallback_url
+        
+        if real_dl_url:
             return {
                 "success": True,
-                "download_url": source_url or fallback_url,
-                "filename": f"{clean_title}_{target_quality}.mkv",
-                "quality": target_quality,
-                "source": "Direct Storage Stream",
-                "error": None
-            }
-        except Exception as fb_ex:
-            logger.warning(f"Universal fallback build failed: {fb_ex}")
-
-        if fallback_url and fallback_url != "https://search.technews24.site/blog.php":
-            return {
-                "success": True,
-                "download_url": fallback_url,
+                "download_url": real_dl_url,
                 "filename": f"movie_{target_quality}.mkv",
                 "quality": target_quality,
                 "source": "Direct Source",
                 "error": None
             }
+
+        # No valid direct file URL found — return failure so caller can gracefully redirect to movie page
         return {
             "success": False,
-            "download_url": fallback_url or source_url,
+            "download_url": None,
             "filename": f"movie_{target_quality}.mkv",
             "quality": target_quality,
             "source": "None",

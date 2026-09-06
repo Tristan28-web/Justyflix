@@ -561,9 +561,14 @@ def download_movie(movie_id, link_idx):
 
         if not res.get('success') or not res.get('download_url'):
             logger.warning(f"Download resolution failed for {movie_id} [{quality}]. Utilizing safe source fallback.")
-            fallback_target = target_link.get('url') or movie.get('source_url') or ''
+            # Try: 1) raw link URL, 2) fojik source page, 3) movie detail page
+            fallback_target = target_link.get('url') or ''
+            source_page = movie.get('source_url') or ''
             if fallback_target and fallback_target.startswith('http') and 'blog.php' not in fallback_target:
                 return redirect(fallback_target, code=302)
+            if source_page and source_page.startswith('http') and 'fojik.site' in source_page:
+                # Redirect to the original source page so the user can manually download
+                return redirect(source_page, code=302)
             return redirect(url_for('movie_detail', movie_id=movie_id))
 
         r2_url = res['download_url']

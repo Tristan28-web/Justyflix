@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       renderNotificationDrawer(currentNotifications);
     } catch (err) {
-      console.error('Error fetching notifications:', err);
+      // Silently handle transient network errors during server restarts or offline status
     } finally {
       isCheckingNotifications = false;
     }

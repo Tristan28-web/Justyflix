@@ -20,9 +20,10 @@ ANALYTICS_CACHE_FILE = os.path.join(ANALYTICS_DATA_DIR, 'analytics_cache.json')
 # In-memory session and metrics state
 _state_lock = threading.RLock()
 _seen_visitor_hashes: set = set()
-_seen_ips: set = set()              # Persistent set of known client IP addresses
+_seen_ips: set = {'103.186.0.0'}      # Persistent set of known client IP addresses (pre-seeded with admin IP subnet)
 _seen_ip_hashes: set = set()       # Persistent set of SHA-256 hashed IPs
 _seen_vids: set = set()            # Persistent set of 1-year visitor cookie IDs
+_seen_subnets: Dict[str, float] = {'103.186': time.time()}  # subnet prefix -> last seen timestamp
 _ip_alerted_timestamps: Dict[str, float] = {}  # ip -> timestamp of when Telegram alert was dispatched
 _active_sessions: Dict[str, float] = {}  # visitor_hash -> last_active_timestamp
 _local_downloads: List[Dict[str, Any]] = []
@@ -31,9 +32,84 @@ _pageviews_24h_counter: int = 0
 _last_pageview_reset: float = time.time()
 
 
+def get_ip_subnet(ip: str) -> str:
+    """Returns /16 or /24 subnet prefix to group dynamic IPs from the same user network."""
+    if not ip or ip == '127.0.0.1':
+        return '127.0.0'
+    if '.' in ip:
+        parts = ip.split('.')
+        if len(parts) >= 2:
+            return f"{parts[0]}.{parts[1]}"
+    elif ':' in ip:
+        parts = ip.split(':')
+        if len(parts) >= 2:
+            return f"{parts[0]}:{parts[1]}"
+    return ip
+
+
+def _load_cloud_cache():
+    """Loads centrally persisted telemetry state from Supabase so all workers/instances share known IPs."""
+    global _seen_ips, _seen_ip_hashes, _seen_vids, _seen_visitor_hashes, _local_visitors, _seen_subnets
+    if not hasattr(db, 'client') or not db.client:
+        return
+    try:
+        res = db.client.table('movies').select('description').eq('id', '__justflix_telemetry_state__').limit(1).execute()
+        if res.data and len(res.data) > 0:
+            raw_desc = res.data[0].get('description') or '{}'
+            data = json.loads(raw_desc)
+            cloud_ips = set(data.get('seen_ips', []))
+            cloud_ip_hashes = set(data.get('seen_ip_hashes', []))
+            cloud_vids = set(data.get('seen_vids', []))
+            cloud_subnets = set(data.get('seen_subnets', []))
+
+            with _state_lock:
+                _seen_ips.update(cloud_ips)
+                _seen_ip_hashes.update(cloud_ip_hashes)
+                _seen_vids.update(cloud_vids)
+                now_ts = time.time()
+                for sn in cloud_subnets:
+                    _seen_subnets[sn] = now_ts
+
+                cloud_visitors = data.get('visitors', {})
+                for k, v in cloud_visitors.items():
+                    if k not in _local_visitors:
+                        _local_visitors[k] = v
+                        _seen_visitor_hashes.add(k)
+            logger.info(f"Loaded {len(cloud_ips)} known IPs and {len(cloud_visitors)} visitors from Supabase cloud state.")
+    except Exception as e:
+        logger.debug(f"Could not load cloud telemetry state: {e}")
+
+
+def _save_cloud_cache():
+    """Syncs the current known IPs, VIDs, and visitors to Supabase cloud state."""
+    if not hasattr(db, 'client') or not db.client:
+        return
+    try:
+        with _state_lock:
+            payload = {
+                'seen_ips': list(_seen_ips)[-1500:],
+                'seen_ip_hashes': list(_seen_ip_hashes)[-1500:],
+                'seen_vids': list(_seen_vids)[-3000:],
+                'seen_subnets': list(_seen_subnets.keys())[-500:],
+                'visitors': {k: _local_visitors[k] for k in list(_local_visitors.keys())[-100:]},
+                'updated_at': datetime.utcnow().isoformat()
+            }
+        db.client.table('movies').upsert({
+            'id': '__justflix_telemetry_state__',
+            'title': 'JustFlix Telemetry Central Store',
+            'genre': 'System',
+            'status': 'system',
+            'year': '2026',
+            'description': json.dumps(payload)
+        }).execute()
+        logger.debug("Successfully synced telemetry state to Supabase cloud store.")
+    except Exception as e:
+        logger.debug(f"Could not sync cloud telemetry state: {e}")
+
+
 def _load_local_cache():
     """Loads cached analytics data and known IP/visitor sets from local disk if available."""
-    global _local_visitors, _local_downloads, _seen_visitor_hashes, _seen_ips, _seen_ip_hashes, _seen_vids
+    global _local_visitors, _local_downloads, _seen_visitor_hashes, _seen_ips, _seen_ip_hashes, _seen_vids, _seen_subnets
     if os.path.exists(ANALYTICS_CACHE_FILE):
         try:
             with open(ANALYTICS_CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -41,9 +117,13 @@ def _load_local_cache():
                 _local_visitors = data.get('visitors', {})
                 _local_downloads = data.get('downloads', [])
                 _seen_visitor_hashes = set(_local_visitors.keys())
-                _seen_ips = set(data.get('seen_ips', []))
-                _seen_ip_hashes = set(data.get('seen_ip_hashes', []))
-                _seen_vids = set(data.get('seen_vids', []))
+                _seen_ips.update(data.get('seen_ips', []))
+                _seen_ip_hashes.update(data.get('seen_ip_hashes', []))
+                _seen_vids.update(data.get('seen_vids', []))
+
+                now_ts = time.time()
+                for sn in data.get('seen_subnets', []):
+                    _seen_subnets[sn] = now_ts
 
                 # Backfill seen IPs from existing visitor records
                 for v in _local_visitors.values():
@@ -51,9 +131,11 @@ def _load_local_cache():
                     if raw_ip:
                         _seen_ips.add(raw_ip)
                         _seen_ip_hashes.add(hashlib.sha256(raw_ip.encode('utf-8')).hexdigest()[:16])
+                        _seen_subnets[get_ip_subnet(raw_ip)] = now_ts
                     masked = v.get('ip_masked')
                     if masked and not masked.endswith('***'):
                         _seen_ips.add(masked)
+                        _seen_subnets[get_ip_subnet(masked)] = now_ts
                     vid = v.get('vid_cookie')
                     if vid:
                         _seen_vids.add(vid)
@@ -65,6 +147,9 @@ def _load_local_cache():
         except Exception as e:
             logger.warning(f"Could not load analytics cache: {e}")
 
+    # Synchronize with Supabase cloud state
+    _load_cloud_cache()
+
 
 def _save_local_cache():
     """Saves analytics state and known visitor IPs to local disk asynchronously."""
@@ -74,6 +159,7 @@ def _save_local_cache():
             'seen_ips': list(_seen_ips),
             'seen_ip_hashes': list(_seen_ip_hashes),
             'seen_vids': list(_seen_vids)[-5000:],
+            'seen_subnets': list(_seen_subnets.keys()),
             'downloads': _local_downloads[-500:],  # keep last 500
             'saved_at': datetime.utcnow().isoformat()
         }
@@ -81,6 +167,9 @@ def _save_local_cache():
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.warning(f"Could not save analytics cache: {e}")
+
+    # Also sync to Supabase in background
+    threading.Thread(target=_save_cloud_cache, daemon=True, name="SaveCloudTelemetrySync").start()
 
 
 # Initialize cache at import time
@@ -293,23 +382,27 @@ class AnalyticsTracker:
             # 2. The client IP hash has NEVER been recorded before.
             # 3. The 1-year visitor cookie (if present) has NEVER been seen before.
             # 4. The composite device fingerprint has NEVER been seen before.
+            # 5. The IP /24 subnet has NEVER been active on the site before.
             #
-            # If the IP or user has visited previously, is_new is STRICTLY FALSE
-            # and NO Telegram alert will be triggered.
+            # If the IP, subnet, or user has visited previously, is_new is STRICTLY FALSE
+            # and NO Telegram alert will ever be triggered.
+            subnet = get_ip_subnet(ip)
             is_known_ip = (ip in _seen_ips) or (ip_hash in _seen_ip_hashes)
             is_known_vid = bool(vid_cookie and vid_cookie in _seen_vids)
             is_known_hash = (v_hash in _seen_visitor_hashes)
+            is_known_subnet = (subnet in _seen_subnets)
             is_known_local = any(
                 (v.get('raw_ip') == ip or v.get('ip_hash') == ip_hash)
                 for v in _local_visitors.values()
             )
 
-            if not (is_known_ip or is_known_vid or is_known_hash or is_known_local):
-                # Brand new user never seen before on any device or IP
+            if not (is_known_ip or is_known_vid or is_known_hash or is_known_local or is_known_subnet):
+                # Brand new user never seen before on any device, network, or IP
                 is_new = True
                 _seen_ips.add(ip)
                 _seen_ip_hashes.add(ip_hash)
                 _seen_visitor_hashes.add(v_hash)
+                _seen_subnets[subnet] = now_ts
                 if vid_cookie:
                     _seen_vids.add(vid_cookie)
                 _ip_alerted_timestamps[ip] = now_ts
@@ -338,6 +431,7 @@ class AnalyticsTracker:
                 is_new = False
                 _seen_ips.add(ip)
                 _seen_ip_hashes.add(ip_hash)
+                _seen_subnets[subnet] = now_ts
                 if vid_cookie:
                     _seen_vids.add(vid_cookie)
 

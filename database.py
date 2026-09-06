@@ -826,6 +826,8 @@ class SupabaseDatabase:
 
     def get_movie(self, movie_id: str) -> Optional[Dict[str, Any]]:
         """Retrieve a movie by its ID directly from Supabase."""
+        if str(movie_id).startswith('__'):
+            return None
         try:
             res = self.client.table("movies").select("*").eq("id", str(movie_id)).limit(1).execute()
             if res.data and len(res.data) > 0:
@@ -866,7 +868,7 @@ class SupabaseDatabase:
                 q = q.or_(f"title.ilike.%{query}%,genre.ilike.%{query}%,cast.ilike.%{query}%")
             
             res = q.order("scraped_at", desc=True).limit(2000).execute()
-            movie_list = res.data or []
+            movie_list = [m for m in (res.data or []) if not str(m.get('id', '')).startswith('__')]
 
             for m in movie_list:
                 if not m.get("rating"):

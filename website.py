@@ -288,8 +288,11 @@ def set_visitor_cookie(response):
     when users browse multiple pages.
     """
     vid_cookie = getattr(request, '_justflix_vid_cookie', None)
-    if vid_cookie and not request.cookies.get('justflix_vid'):
-        response.set_cookie('justflix_vid', vid_cookie, max_age=31536000, httponly=True, samesite='Lax')
+    if vid_cookie:
+        if not request.cookies.get('justflix_vid'):
+            response.set_cookie('justflix_vid', vid_cookie, max_age=31536000, httponly=False, samesite='Lax', path='/')
+        if not request.cookies.get('justy_vid'):
+            response.set_cookie('justy_vid', vid_cookie, max_age=31536000, httponly=False, samesite='Lax', path='/')
     return response
 # ─────────────────────────────────────────────────────────────────────────────
 

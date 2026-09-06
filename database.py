@@ -248,32 +248,49 @@ class JSONDatabase:
         }
 
     def init_db(self) -> None:
-        """Create movies.json if it does not exist or copy seed catalog."""
+        """Create movies.json if it does not exist or merge seed catalog."""
         with _db_lock:
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
             os.makedirs(self.backup_dir, exist_ok=True)
             
             seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'movies.json'))
             
-            should_copy_seed = False
-            if not os.path.exists(self.db_path):
-                should_copy_seed = True
-            else:
+            if os.path.exists(seed_path) and os.path.abspath(self.db_path) != seed_path:
                 try:
-                    with open(self.db_path, 'r', encoding='utf-8') as f:
-                        existing_data = json.load(f)
-                        if len(existing_data.get('movies', {})) < 10:
-                            should_copy_seed = True
-                except Exception:
-                    should_copy_seed = True
+                    with open(seed_path, 'r', encoding='utf-8') as sf:
+                        seed_data = json.load(sf)
+                    seed_movies = seed_data.get('movies', {})
+                    
+                    current_data = {}
+                    if os.path.exists(self.db_path) and os.path.getsize(self.db_path) > 10:
+                        try:
+                            with open(self.db_path, 'r', encoding='utf-8') as df:
+                                current_data = json.load(df)
+                        except Exception:
+                            current_data = {}
 
-            if should_copy_seed and os.path.exists(seed_path) and os.path.abspath(self.db_path) != seed_path:
-                try:
-                    shutil.copy2(seed_path, self.db_path)
-                    logger.info(f"Initialized persistent database at {self.db_path} from project seed data ({seed_path}).")
-                    return
+                    current_movies = current_data.get('movies', {})
+                    if len(current_movies) < len(seed_movies):
+                        for m_id, m_data in seed_movies.items():
+                            if m_id not in current_movies:
+                                current_movies[m_id] = m_data
+                            else:
+                                c_links = current_movies[m_id].get('download_links', [])
+                                seen_urls = {l.get('url') or l.get('original_url') for l in c_links if isinstance(l, dict)}
+                                for s_link in m_data.get('download_links', []):
+                                    if isinstance(s_link, dict):
+                                        s_url = s_link.get('url') or s_link.get('original_url')
+                                        if s_url and s_url not in seen_urls:
+                                            c_links.append(s_link)
+                                            seen_urls.add(s_url)
+                                current_movies[m_id]['download_links'] = c_links
+
+                        current_data['movies'] = current_movies
+                        self._atomic_write(current_data)
+                        logger.info(f"Merged {len(seed_movies)} seed movies into persistent database at {self.db_path}. Total: {len(current_movies)}")
+                        return
                 except Exception as e:
-                    logger.warning(f"Failed to copy seed database to {self.db_path}: {e}")
+                    logger.warning(f"Seed database merge exception: {e}")
             
             if not os.path.exists(self.db_path):
                 logger.info(f"Initializing empty JSON database at {self.db_path}")

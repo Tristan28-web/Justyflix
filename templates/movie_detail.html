@@ -143,16 +143,15 @@
             <i class="bi bi-clipboard me-1"></i> Copy Magnet
           </button>
           {% else %}
-          <a
-            href="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0) }}"
+          <button
+            type="button"
             class="btn-gdrive-direct js-download-btn"
             data-movie-id="{{ movie.id }}"
             data-link-idx="{{ loop.index0 }}"
             data-quality="{{ link.quality or 'HD' }}"
-            download
           >
             <i class="bi bi-download"></i> Direct Cloud Download {{ link.quality or '' }}
-          </a>
+          </button>
           <button
             type="button"
             class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
@@ -186,6 +185,8 @@
         src="{{ preview_link.preview_url }}"
         allow="autoplay; fullscreen"
         allowfullscreen
+      ></iframe>
+    </div>
   </div>
   {% endif %}
 </div>
@@ -193,7 +194,7 @@
 
 {% block scripts %}
 <script>
-
+document.addEventListener('DOMContentLoaded', function() {
   const downloadBtns = document.querySelectorAll('.js-download-btn');
   downloadBtns.forEach(btn => {
     btn.addEventListener('click', async function(e) {
@@ -223,16 +224,16 @@
             this.disabled = false;
             this.style.pointerEvents = 'auto';
           }, 3500);
-        } else if (data.download_url && data.download_url.startswith('http')) {
+        } else if (data.direct_cdn_url && data.direct_cdn_url.startsWith('http')) {
           this.innerHTML = `<i class="bi bi-arrow-down-circle-fill text-info me-2"></i> Connecting to mirror...`;
-          window.location.href = data.download_url;
+          window.location.href = data.direct_cdn_url;
           setTimeout(() => {
             this.innerHTML = originalHtml;
             this.disabled = false;
             this.style.pointerEvents = 'auto';
           }, 3500);
         } else {
-          this.innerHTML = `<i class="bi bi-arrow-clockwise text-warning me-2"></i> Stream refreshing, try again`;
+          this.innerHTML = `<i class="bi bi-exclamation-circle text-warning me-2"></i> Mirror updating, try again`;
           setTimeout(() => {
             this.innerHTML = originalHtml;
             this.disabled = false;

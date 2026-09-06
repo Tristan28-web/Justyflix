@@ -248,10 +248,32 @@ class JSONDatabase:
         }
 
     def init_db(self) -> None:
-        """Create movies.json if it does not exist."""
+        """Create movies.json if it does not exist or copy seed catalog."""
         with _db_lock:
             os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
             os.makedirs(self.backup_dir, exist_ok=True)
+            
+            seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'movies.json'))
+            
+            should_copy_seed = False
+            if not os.path.exists(self.db_path):
+                should_copy_seed = True
+            else:
+                try:
+                    with open(self.db_path, 'r', encoding='utf-8') as f:
+                        existing_data = json.load(f)
+                        if len(existing_data.get('movies', {})) < 10:
+                            should_copy_seed = True
+                except Exception:
+                    should_copy_seed = True
+
+            if should_copy_seed and os.path.exists(seed_path) and os.path.abspath(self.db_path) != seed_path:
+                try:
+                    shutil.copy2(seed_path, self.db_path)
+                    logger.info(f"Initialized persistent database at {self.db_path} from project seed data ({seed_path}).")
+                    return
+                except Exception as e:
+                    logger.warning(f"Failed to copy seed database to {self.db_path}: {e}")
             
             if not os.path.exists(self.db_path):
                 logger.info(f"Initializing empty JSON database at {self.db_path}")

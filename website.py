@@ -271,19 +271,8 @@ def home():
 
     def enrich_movie(m):
         m_copy = dict(m)
-        scraped = m_copy.get('scraped_at')
-        formatted_date = None
-        if scraped:
-            try:
-                from datetime import datetime
-                dt = datetime.fromisoformat(scraped)
-                formatted_date = dt.strftime('%b. %d, %Y')
-            except Exception:
-                pass
-        if not formatted_date:
-            yr = m_copy.get('year', '2026')
-            formatted_date = f"Sep. 04, {yr}" if yr else "2026"
-        m_copy['formatted_date'] = formatted_date
+        from database import calculate_authentic_release_date
+        m_copy['formatted_date'] = calculate_authentic_release_date(m_copy)
 
         t = (m_copy.get('title') or '') + ' ' + (m_copy.get('description') or '')
         g = (m_copy.get('genre') or '')

@@ -387,7 +387,7 @@ def resolve_movie_direct_download(
         html6 = urllib.request.urlopen(req6, timeout=timeout).read().decode('utf-8', errors='ignore')
         soup6 = BeautifulSoup(html6, 'html.parser')
 
-        all_candidate_urls = []
+        candidate_items = []
         
         # 1. Scoped search inside <p> paragraphs matching target_quality token (e.g. 1080p, 720p, 480p)
         for p in soup6.find_all('p'):
@@ -397,45 +397,47 @@ def resolve_movie_direct_download(
                     for a in p.find_all('a'):
                         label = a.get_text().strip().upper()
                         href = a.get('href')
-                        if href and href.startswith('http') and href not in all_candidate_urls:
+                        if href and href.startswith('http') and not any(h == href for _, h in candidate_items):
                             if any(k in label for k in ['GDS', 'GDRIVE', 'DRIVE', '1FI', 'MEGA', 'UTB', 'TRNSIT', 'PXD']):
-                                all_candidate_urls.append(href)
+                                candidate_items.append((label, href))
 
         # 2. Fallback to general search if no paragraph explicitly matched
-        if not all_candidate_urls:
+        if not candidate_items:
             for a in soup6.find_all('a'):
                 label = a.get_text().strip().upper()
                 href = a.get('href')
-                if href and href.startswith('http') and href not in all_candidate_urls:
+                if href and href.startswith('http') and not any(h == href for _, h in candidate_items):
                     if any(k in label for k in ['GDS', 'GDRIVE', 'DRIVE', '1FI', 'MEGA', 'UTB', 'TRNSIT', 'PXD']):
-                        all_candidate_urls.append(href)
+                        candidate_items.append((label, href))
 
-        if not all_candidate_urls:
+        if not candidate_items:
             raise Exception("Step 6: Direct server link not available for this title.")
 
         # Check for instant PixelDrain direct storage candidates first
-        for cand in all_candidate_urls:
-            if 'pixeldrain.com' in cand:
+        for lbl, cand in candidate_items:
+            if 'pixeldrain.com' in cand or 'PXD' in lbl:
                 pix_res = resolve_pixeldrain(cand, target_quality=target_quality)
                 if pix_res:
                     download_cache.set(cache_key, pix_res, ttl=3600)
                     logger.info(f"Resolved instant PixelDrain candidate URL for {target_quality}: {pix_res['download_url']}")
                     return pix_res
 
-        # Prioritize live technews24.site domain mirrors over dead/timing out technews24.me mirrors (cap at top 2)
-        candidate_urls = sorted(
-            all_candidate_urls,
-            key=lambda u: (
-                0 if 'pixeldrain' in u else
-                1 if 'google.com' in u or 'storage' in u or 'r2.' in u else
-                2 if 'technews24.site' in u else 3
+        # Prioritize GDS mirrors (which route to authentic Cloudflare R2) over broken landing pages
+        sorted_candidates = sorted(
+            candidate_items,
+            key=lambda item: (
+                0 if 'pixeldrain' in item[1] or 'PXD' in item[0] else
+                1 if 'GDS' in item[0] else
+                2 if 'r2.' in item[1] or 'storage' in item[1] or 'google.com' in item[1] else
+                3 if 'technews24.site' in item[1] else 4
             )
-        )[:2]
+        )
+        candidate_urls = [h for _, h in sorted_candidates][:3]
 
         # Step 7: Resolve candidate link to Cloudflare R2
         for cand_url in candidate_urls:
             try:
-                cand_timeout = 4.0
+                cand_timeout = 5.0
                 req7a = urllib.request.Request(cand_url, headers={**HEADERS, 'Referer': links_page_url})
                 html7a = urllib.request.urlopen(req7a, timeout=cand_timeout).read().decode('utf-8', errors='ignore')
                 soup7a = BeautifulSoup(html7a, 'html.parser')
@@ -503,29 +505,16 @@ def resolve_movie_direct_download(
                 r2_candidate = None
                 if 'r2.cloudflarestorage.com' in boa_url:
                     r2_candidate = boa_url
-                elif 'cdn.cdn-hub.xyz' in boa_url or 'cdn-hub.xyz' in boa_url:
-                    # cdn-hub.xyz IS a direct CDN URL — return it directly; never try to download/read it
-                    fn_m = re.search(r'filename%3D%22([^%"]+)%22', boa_url) or re.search(r'filename=([^&"]+)', boa_url)
-                    cdn_filename = urllib.parse.unquote(fn_m.group(1)) if fn_m else f"Movie_{target_quality}.mkv"
-                    res = {
-                        "success": True,
-                        "download_url": boa_url,
-                        "filename": cdn_filename,
-                        "quality": target_quality,
-                        "source": "Cloudflare CDN",
-                        "error": None
-                    }
-                    download_cache.set(cache_key, res, ttl=3600)
-                    logger.info(f"Resolved cdn-hub.xyz direct CDN URL for {target_quality}: {boa_url[:80]}...")
-                    return res
+                elif 'cdn-hub.xyz' in boa_url or 'cdn.cdn-hub' in boa_url:
+                    logger.warning(f"Candidate yielded landing page {boa_url[:60]}... skipping to next candidate.")
+                    continue
                 elif boa_url.startswith('http'):
-                    target_fetch_url = boa_url.replace('/url?', '/embed?') if '/url?' in boa_url else boa_url
                     req7e = urllib.request.Request(
-                        target_fetch_url,
+                        boa_url,
                         data=urllib.parse.urlencode({'clouddownload': ''}).encode('utf-8'),
                         headers={
                             **HEADERS,
-                            'Referer': target_fetch_url,
+                            'Referer': boa_url,
                             'Origin': 'https://boabd.com',
                             'Content-Type': 'application/x-www-form-urlencoded'
                         }
@@ -534,6 +523,7 @@ def resolve_movie_direct_download(
                     r2_m = re.search(r'https?://[^\s\'"]*r2\.cloudflarestorage\.com[^\s\'"]*', html7e)
                     if r2_m:
                         r2_candidate = r2_m.group(0)
+
                     else:
                         gdrive_m = re.search(r'https?://[^\s\'"]*(?:drive\.google\.com|pixeldrain\.com|transfer\.it)[^\s\'"]*', html7e)
                         if gdrive_m:

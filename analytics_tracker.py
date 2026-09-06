@@ -20,6 +20,10 @@ ANALYTICS_CACHE_FILE = os.path.join(ANALYTICS_DATA_DIR, 'analytics_cache.json')
 # In-memory session and metrics state
 _state_lock = threading.RLock()
 _seen_visitor_hashes: set = set()
+_seen_ips: set = set()              # Persistent set of known client IP addresses
+_seen_ip_hashes: set = set()       # Persistent set of SHA-256 hashed IPs
+_seen_vids: set = set()            # Persistent set of 1-year visitor cookie IDs
+_ip_alerted_timestamps: Dict[str, float] = {}  # ip -> timestamp of when Telegram alert was dispatched
 _active_sessions: Dict[str, float] = {}  # visitor_hash -> last_active_timestamp
 _local_downloads: List[Dict[str, Any]] = []
 _local_visitors: Dict[str, Dict[str, Any]] = {}
@@ -28,8 +32,8 @@ _last_pageview_reset: float = time.time()
 
 
 def _load_local_cache():
-    """Loads cached analytics data from local disk if available."""
-    global _local_visitors, _local_downloads, _seen_visitor_hashes
+    """Loads cached analytics data and known IP/visitor sets from local disk if available."""
+    global _local_visitors, _local_downloads, _seen_visitor_hashes, _seen_ips, _seen_ip_hashes, _seen_vids
     if os.path.exists(ANALYTICS_CACHE_FILE):
         try:
             with open(ANALYTICS_CACHE_FILE, 'r', encoding='utf-8') as f:
@@ -37,16 +41,39 @@ def _load_local_cache():
                 _local_visitors = data.get('visitors', {})
                 _local_downloads = data.get('downloads', [])
                 _seen_visitor_hashes = set(_local_visitors.keys())
-                logger.info(f"Loaded {len(_local_visitors)} visitors and {len(_local_downloads)} downloads from local analytics cache.")
+                _seen_ips = set(data.get('seen_ips', []))
+                _seen_ip_hashes = set(data.get('seen_ip_hashes', []))
+                _seen_vids = set(data.get('seen_vids', []))
+
+                # Backfill seen IPs from existing visitor records
+                for v in _local_visitors.values():
+                    raw_ip = v.get('raw_ip')
+                    if raw_ip:
+                        _seen_ips.add(raw_ip)
+                        _seen_ip_hashes.add(hashlib.sha256(raw_ip.encode('utf-8')).hexdigest()[:16])
+                    masked = v.get('ip_masked')
+                    if masked and not masked.endswith('***'):
+                        _seen_ips.add(masked)
+                    vid = v.get('vid_cookie')
+                    if vid:
+                        _seen_vids.add(vid)
+
+                logger.info(
+                    f"Loaded {len(_local_visitors)} visitors ({len(_seen_ips)} known IPs) "
+                    f"and {len(_local_downloads)} downloads from local analytics cache."
+                )
         except Exception as e:
             logger.warning(f"Could not load analytics cache: {e}")
 
 
 def _save_local_cache():
-    """Saves analytics state to local disk asynchronously."""
+    """Saves analytics state and known visitor IPs to local disk asynchronously."""
     try:
         data = {
             'visitors': _local_visitors,
+            'seen_ips': list(_seen_ips),
+            'seen_ip_hashes': list(_seen_ip_hashes),
+            'seen_vids': list(_seen_vids)[-5000:],
             'downloads': _local_downloads[-500:],  # keep last 500
             'saved_at': datetime.utcnow().isoformat()
         }
@@ -179,9 +206,9 @@ def generate_visitor_hash(ip: str, ua: str, vid_cookie: Optional[str] = None) ->
 
 
 def is_static_or_monitoring_request(path: str) -> bool:
-    """Filters out internal polling, API calls, health checks, and static asset requests."""
+    """Filters out internal polling, API calls, health checks, monitoring portal, and static asset requests."""
     p = path.lower()
-    if any(p.startswith(pref) for pref in ['/static', '/favicon', '/robots.txt', '/api/', '/health', '/healthz']):
+    if any(p.startswith(pref) for pref in ['/static', '/favicon', '/robots.txt', '/api/', '/health', '/healthz', '/monitor']):
         return True
     if any(p.endswith(ext) for ext in ['.css', '.js', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.svg', '.map']):
         return True
@@ -211,9 +238,11 @@ class AnalyticsTracker:
 
     def record_visit(self, req, vid_cookie: Optional[str] = None) -> Tuple[bool, str, Dict[str, Any]]:
         """
-        Records a visitor event.
+        Records a visitor event with multi-layer IP and cookie deduplication.
         Returns (is_new, visitor_hash, visitor_record).
-        Dispatches instant Telegram alert if is_new is True.
+        Dispatches instant Telegram alert ONLY if the visitor is genuinely brand new.
+        If the IP user address has already accessed the website, it is treated as an
+        old / returning user and will NEVER notify via Telegram.
         """
         global _pageviews_24h_counter, _last_pageview_reset
         path = req.path
@@ -238,7 +267,7 @@ class AnalyticsTracker:
             _last_pageview_reset = now_ts
 
         ip_masked = mask_ip(ip)
-        ua = req.headers.get('User-Agent', '')
+        ip_hash = hashlib.sha256(ip.encode('utf-8')).hexdigest()[:16]
         country = req.headers.get('CF-IPCountry') or req.headers.get('X-Country-Code') or 'Global'
         ref_raw = req.headers.get('Referer', '')
         referrer = parse_referrer_domain(ref_raw)
@@ -258,11 +287,38 @@ class AnalyticsTracker:
             for k in expired_sessions:
                 del _active_sessions[k]
 
-            if v_hash not in _seen_visitor_hashes:
+            # ── STRICT MULTI-LAYER USER & IP DEDUPLICATION ─────────────────
+            # An access is ONLY classified as a "new user" if:
+            # 1. The client IP address has NEVER accessed the website before.
+            # 2. The client IP hash has NEVER been recorded before.
+            # 3. The 1-year visitor cookie (if present) has NEVER been seen before.
+            # 4. The composite device fingerprint has NEVER been seen before.
+            #
+            # If the IP or user has visited previously, is_new is STRICTLY FALSE
+            # and NO Telegram alert will be triggered.
+            is_known_ip = (ip in _seen_ips) or (ip_hash in _seen_ip_hashes)
+            is_known_vid = bool(vid_cookie and vid_cookie in _seen_vids)
+            is_known_hash = (v_hash in _seen_visitor_hashes)
+            is_known_local = any(
+                (v.get('raw_ip') == ip or v.get('ip_hash') == ip_hash)
+                for v in _local_visitors.values()
+            )
+
+            if not (is_known_ip or is_known_vid or is_known_hash or is_known_local):
+                # Brand new user never seen before on any device or IP
                 is_new = True
+                _seen_ips.add(ip)
+                _seen_ip_hashes.add(ip_hash)
                 _seen_visitor_hashes.add(v_hash)
+                if vid_cookie:
+                    _seen_vids.add(vid_cookie)
+                _ip_alerted_timestamps[ip] = now_ts
+
                 visitor_entry = {
                     'visitor_hash': v_hash,
+                    'raw_ip': ip,
+                    'ip_hash': ip_hash,
+                    'vid_cookie': vid_cookie or '',
                     'first_seen': now_iso,
                     'last_seen': now_iso,
                     'visit_count': 1,
@@ -278,10 +334,46 @@ class AnalyticsTracker:
                 _local_visitors[v_hash] = visitor_entry
                 _save_local_cache()
             else:
+                # Existing / returning user from the same IP or device
+                is_new = False
+                _seen_ips.add(ip)
+                _seen_ip_hashes.add(ip_hash)
+                if vid_cookie:
+                    _seen_vids.add(vid_cookie)
+
+                # Locate and update existing visitor record
+                existing_key = None
                 if v_hash in _local_visitors:
-                    _local_visitors[v_hash]['last_seen'] = now_iso
-                    _local_visitors[v_hash]['visit_count'] = _local_visitors[v_hash].get('visit_count', 1) + 1
-                    visitor_entry = _local_visitors[v_hash]
+                    existing_key = v_hash
+                else:
+                    for k, v in _local_visitors.items():
+                        if v.get('raw_ip') == ip or v.get('ip_hash') == ip_hash:
+                            existing_key = k
+                            break
+
+                if existing_key and existing_key in _local_visitors:
+                    _local_visitors[existing_key]['last_seen'] = now_iso
+                    _local_visitors[existing_key]['visit_count'] = _local_visitors[existing_key].get('visit_count', 1) + 1
+                    visitor_entry = _local_visitors[existing_key]
+                else:
+                    visitor_entry = {
+                        'visitor_hash': v_hash,
+                        'raw_ip': ip,
+                        'ip_hash': ip_hash,
+                        'vid_cookie': vid_cookie or '',
+                        'first_seen': now_iso,
+                        'last_seen': now_iso,
+                        'visit_count': 2,
+                        'ip_masked': ip_masked,
+                        'country': country,
+                        'device': device,
+                        'os': os_name,
+                        'browser': browser,
+                        'referrer': referrer,
+                        'landing_page': path,
+                        'timestamp': now_dt_str
+                    }
+                    _local_visitors[v_hash] = visitor_entry
 
         # Supabase Persistence (Asynchronous background task)
         threading.Thread(
@@ -291,7 +383,7 @@ class AnalyticsTracker:
             name="SupabaseVisitorSync"
         ).start()
 
-        # Immediate Telegram Trigger on NEW user arrival
+        # Immediate Telegram Trigger ONLY for genuinely brand-new visitors
         if is_new and visitor_entry:
             send_new_visitor_alert(visitor_entry)
 

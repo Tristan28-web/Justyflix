@@ -567,17 +567,39 @@ class JSONDatabase:
             return m
 
     def ensure_seeded(self) -> None:
-        """Ensures persistent database contains the complete seed catalog."""
+        """
+        Ensures persistent database contains the complete seed catalog.
+        Uses an OS-level file lock (fcntl on Linux) to prevent simultaneous
+        writes from multiple Gunicorn worker processes during first-boot seeding.
+        """
+        db_dir = os.path.dirname(self.db_path) or '.'
+        lock_path = os.path.join(db_dir, '.seed.lock')
+
+        # Acquire an exclusive OS-level file lock (works across processes)
+        lock_fd = None
+        try:
+            os.makedirs(db_dir, exist_ok=True)
+            lock_fd = open(lock_path, 'w')
+            try:
+                import fcntl
+                fcntl.flock(lock_fd, fcntl.LOCK_EX)  # Block until lock acquired
+            except ImportError:
+                pass  # fcntl not available on Windows — no-op (single process locally)
+        except Exception as lock_err:
+            logger.warning(f"ensure_seeded: Could not acquire file lock: {lock_err}")
+
         with _db_lock:
             try:
                 data = self._read_data()
                 movies = data.get("movies", {})
+
+                # Re-check after acquiring lock — another process may have seeded already
                 if len(movies) >= 500:
                     return
 
                 seed_path = os.path.abspath(os.path.join(os.path.dirname(__file__), 'data', 'movies.json'))
                 if not os.path.exists(seed_path) or os.path.abspath(self.db_path) == seed_path:
-                    logger.warning(f"ensure_seeded: Seed file not found or same as db_path — skipping.")
+                    logger.warning("ensure_seeded: Seed file not found or same as db_path — skipping.")
                     return
 
                 with open(seed_path, 'r', encoding='utf-8') as sf:
@@ -589,18 +611,29 @@ class JSONDatabase:
                 data['movies'] = movies
 
                 # Ensure the /data directory exists on the persistent disk
-                db_dir = os.path.dirname(self.db_path)
                 if db_dir:
                     os.makedirs(db_dir, exist_ok=True)
 
-                # Write seed directly (no tmp-rename) — safe because file doesn't exist yet
-                # The atomic rename approach fails on Render persistent disk first-boot
+                # Write seed directly (no tmp-rename) — safe on first boot, file doesn't exist yet.
+                # Atomic rename fails on Render's persistent disk (cross-device ENOENT).
                 with open(self.db_path, 'w', encoding='utf-8') as f:
                     json.dump(data, f, indent=2, ensure_ascii=False)
 
                 logger.info(f"ensure_seeded: Populated persistent database at {self.db_path} with {len(movies)} movies.")
             except Exception as e:
                 logger.warning(f"ensure_seeded exception: {e}")
+            finally:
+                # Release the OS-level file lock
+                if lock_fd:
+                    try:
+                        import fcntl
+                        fcntl.flock(lock_fd, fcntl.LOCK_UN)
+                    except ImportError:
+                        pass
+                    try:
+                        lock_fd.close()
+                    except Exception:
+                        pass
 
     def get_all_movies(
         self,

@@ -44,8 +44,13 @@
             <span class="text-light fw-bold">{{ movie.year or '2026' }}</span>
             <span class="text-secondary">•</span>
             <span class="badge border border-secondary text-light">{{ movie.genre.split(',')[0] if movie.genre else 'Movie' }}</span>
+            {% if movie.status == 'pending' or movie.is_upcoming %}
+            <span class="badge bg-warning text-dark">Upcoming</span>
+            {% else %}
             <span class="badge bg-danger">Available</span>
+            {% endif %}
           </div>
+
 
           <!-- Title -->
           <h1 class="display-6 fw-bold text-white mb-3">{{ movie.title }}</h1>
@@ -143,6 +148,15 @@
             <i class="bi bi-clipboard me-1"></i> Copy Magnet
           </button>
           {% else %}
+          {% if link.resolved_r2_url and link.resolved_r2_url.startswith('http') %}
+          <a
+            href="{{ url_for('download_movie', movie_id=movie.id, link_idx=loop.index0) }}"
+            class="btn-gdrive-direct d-inline-flex align-items-center gap-2"
+            style="text-decoration: none;"
+          >
+            <i class="bi bi-cloud-arrow-down-fill"></i> Direct Cloud Download {{ link.quality or '' }}
+          </a>
+          {% else %}
           <button
             type="button"
             class="btn-gdrive-direct js-download-btn"
@@ -152,6 +166,7 @@
           >
             <i class="bi bi-download"></i> Direct Cloud Download {{ link.quality or '' }}
           </button>
+          {% endif %}
           <button
             type="button"
             class="btn btn-outline-secondary btn-sm btn-copy-link text-light py-2 px-3"
@@ -161,6 +176,7 @@
             <i class="bi bi-clipboard"></i>
           </button>
           {% endif %}
+
         </div>
       </div>
       {% endfor %}

@@ -802,5 +802,288 @@ class JSONDatabase:
             }
 
 
-# Global database instance
-db = JSONDatabase()
+class SupabaseDatabase:
+    """High-performance Supabase PostgreSQL database driver with low RAM footprint."""
+
+    def __init__(self, url: str, key: str):
+        from supabase import create_client
+        self.url = url
+        self.key = key
+        self.client = create_client(url, key)
+        logger.info(f"SupabaseDatabase initialized successfully for {url[:30]}...")
+
+    def get_movie(self, movie_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve a movie by its ID directly from Supabase."""
+        try:
+            res = self.client.table("movies").select("*").eq("id", str(movie_id)).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                m = res.data[0]
+                if not m.get("rating"):
+                    m["rating"] = calculate_real_or_authentic_rating(m)
+                if not m.get("download_links"):
+                    m["download_links"] = [
+                        {
+                            'url': m.get('source_url', ''),
+                            'original_url': m.get('source_url', ''),
+                            'type': 'direct',
+                            'file_id': '',
+                            'label': 'Direct Cloud Download 1080p',
+                            'quality': '1080p',
+                            'size': '----',
+                            'source_site': 'MWLBD'
+                        }
+                    ]
+                return m
+            return None
+        except Exception as e:
+            logger.error(f"Supabase get_movie error ({movie_id}): {e}")
+            return None
+
+    def get_all_movies(
+        self,
+        status: Optional[str] = None,
+        query: Optional[str] = None,
+        genre: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Retrieve movies from Supabase with filtering."""
+        try:
+            q = self.client.table("movies").select("*")
+            if status:
+                q = q.eq("status", status)
+            if query:
+                q = q.or_(f"title.ilike.%{query}%,genre.ilike.%{query}%,cast.ilike.%{query}%")
+            
+            res = q.order("scraped_at", desc=True).limit(500).execute()
+            movie_list = res.data or []
+
+            for m in movie_list:
+                if not m.get("rating"):
+                    m["rating"] = calculate_real_or_authentic_rating(m)
+
+            if genre and genre.lower() != 'all':
+                g_lower = genre.strip().lower()
+                if g_lower == 'bollywood':
+                    movie_list = [m for m in movie_list if 'bollywood' in m.get("genre", "").lower() or ('hindi' in m.get("genre", "").lower() and 'dubbed' not in m.get("genre", "").lower())]
+                elif g_lower == 'hollywood':
+                    movie_list = [m for m in movie_list if 'hollywood' in m.get("genre", "").lower() or 'english' in m.get("genre", "").lower()]
+                elif g_lower in ('series', 'tv series', 'tv shows'):
+                    movie_list = [m for m in movie_list if is_series(m)]
+                elif g_lower in ('movies', 'movie'):
+                    movie_list = [m for m in movie_list if not is_series(m)]
+                else:
+                    movie_list = [m for m in movie_list if g_lower in m.get("genre", "").lower()]
+
+            return movie_list
+        except Exception as e:
+            logger.error(f"Supabase get_all_movies error: {e}")
+            return []
+
+    def get_paginated_movies(
+        self,
+        page: int = 1,
+        per_page: int = 30,
+        status: Optional[str] = None,
+        query: Optional[str] = None,
+        genre: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """SQL-based pagination that fetches ONLY 30 rows at a time from PostgreSQL."""
+        try:
+            per_page = max(1, per_page)
+            page = max(1, page)
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page - 1
+
+            q = self.client.table("movies").select("*", count="exact")
+
+            if status:
+                q = q.eq("status", status)
+            if query:
+                q = q.or_(f"title.ilike.%{query}%,genre.ilike.%{query}%,cast.ilike.%{query}%")
+            if genre and genre.lower() != 'all':
+                g_lower = genre.strip().lower()
+                if g_lower not in ('series', 'movies', 'bollywood', 'hollywood'):
+                    q = q.ilike("genre", f"%{g_lower}%")
+
+            res = q.order("scraped_at", desc=True).range(start_idx, end_idx).execute()
+            items = res.data or []
+            total_items = res.count or len(items)
+
+            for m in items:
+                if not m.get("rating"):
+                    m["rating"] = calculate_real_or_authentic_rating(m)
+
+            total_pages = max(1, (total_items + per_page - 1) // per_page)
+
+            return {
+                "items": items,
+                "total": total_items,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "current_page": page,
+                "per_page": per_page,
+                "has_prev": page > 1,
+                "has_next": page < total_pages,
+                "prev_page": page - 1 if page > 1 else None,
+                "next_page": page + 1 if page < total_pages else None
+            }
+        except Exception as e:
+            logger.error(f"Supabase get_paginated_movies error: {e}")
+            # Fallback to local filtering if query structure fails
+            all_matches = self.get_all_movies(status=status, query=query, genre=genre)
+            total_items = len(all_matches)
+            total_pages = max(1, (total_items + per_page - 1) // per_page)
+            page = max(1, min(page, total_pages))
+            start_idx = (page - 1) * per_page
+            end_idx = start_idx + per_page
+            return {
+                "items": all_matches[start_idx:end_idx],
+                "total": total_items,
+                "total_items": total_items,
+                "total_pages": total_pages,
+                "current_page": page,
+                "per_page": per_page,
+                "has_prev": page > 1,
+                "has_next": page < total_pages,
+                "prev_page": page - 1 if page > 1 else None,
+                "next_page": page + 1 if page < total_pages else None
+            }
+
+    def save_movie(self, movie: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Upsert movie to Supabase PostgreSQL."""
+        if not movie or "id" not in movie:
+            return None
+        if not is_2026_or_future(movie):
+            return None
+        try:
+            movie_id = str(movie["id"])
+            existing = self.get_movie(movie_id) or {}
+            now_iso = datetime.utcnow().isoformat()
+
+            download_links = movie.get("download_links") or existing.get("download_links", [])
+
+            entry = {
+                "id": movie_id,
+                "title": str(movie.get("title", existing.get("title", "Untitled"))).strip(),
+                "year": str(movie.get("year", existing.get("year", "2026"))).strip(),
+                "rating": calculate_real_or_authentic_rating(movie),
+                "genre": str(movie.get("genre", existing.get("genre", "General"))).strip(),
+                "director": str(movie.get("director", existing.get("director", "Unknown"))).strip(),
+                "cast": str(movie.get("cast", existing.get("cast", "Unknown"))).strip(),
+                "description": str(movie.get("description", existing.get("description", ""))).strip(),
+                "poster": str(movie.get("poster", existing.get("poster", ""))).strip(),
+                "source_url": str(movie.get("source_url") or movie.get("url") or existing.get("source_url", "")).strip(),
+                "status": "available" if download_links else movie.get("status", existing.get("status", "pending")),
+                "release_date": calculate_authentic_release_date(movie),
+                "scraped_at": existing.get("scraped_at", now_iso),
+                "last_checked": now_iso,
+                "download_links": download_links
+            }
+            self.client.table("movies").upsert(entry).execute()
+            logger.info(f"Supabase saved movie: {entry['title']} (ID: {movie_id})")
+            return entry
+        except Exception as e:
+            logger.error(f"Supabase save_movie error: {e}")
+            return None
+
+    def save_movies_batch(self, movies_list: List[Dict[str, Any]]) -> int:
+        """Upsert batch of movies to Supabase PostgreSQL."""
+        if not movies_list:
+            return 0
+        try:
+            batch = []
+            for m in movies_list:
+                if m and m.get("id") and is_2026_or_future(m):
+                    batch.append({
+                        "id": str(m["id"]),
+                        "title": str(m.get("title", "Untitled")).strip(),
+                        "year": str(m.get("year", "2026")).strip(),
+                        "rating": calculate_real_or_authentic_rating(m),
+                        "genre": str(m.get("genre", "General")).strip(),
+                        "director": str(m.get("director", "Unknown")).strip(),
+                        "cast": str(m.get("cast", "Unknown")).strip(),
+                        "description": str(m.get("description", "")).strip(),
+                        "poster": str(m.get("poster", "")).strip(),
+                        "source_url": str(m.get("source_url") or m.get("url") or "").strip(),
+                        "status": "available" if m.get("download_links") else "pending",
+                        "release_date": calculate_authentic_release_date(m),
+                        "download_links": m.get("download_links", [])
+                    })
+            if batch:
+                self.client.table("movies").upsert(batch).execute()
+                logger.info(f"Supabase batch saved {len(batch)} movies.")
+                return len(batch)
+            return 0
+        except Exception as e:
+            logger.error(f"Supabase save_movies_batch error: {e}")
+            return 0
+
+    def update_movie_download_links(self, movie_id: str, download_links: List[Dict[str, Any]]) -> bool:
+        """Updates download_links jsonb column for a movie in Supabase."""
+        try:
+            self.client.table("movies").update({
+                "download_links": download_links,
+                "status": "available" if download_links else "pending"
+            }).eq("id", str(movie_id)).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Supabase update_movie_download_links error: {e}")
+            return False
+
+    def update_status(self, movie_id: str, status: str) -> bool:
+        """Update movie status in Supabase."""
+        try:
+            self.client.table("movies").update({
+                "status": status,
+                "last_checked": datetime.utcnow().isoformat()
+            }).eq("id", str(movie_id)).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Supabase update_status error: {e}")
+            return False
+
+    def delete_movie(self, movie_id: str) -> bool:
+        """Delete movie from Supabase."""
+        try:
+            self.client.table("movies").delete().eq("id", str(movie_id)).execute()
+            return True
+        except Exception as e:
+            logger.error(f"Supabase delete_movie error: {e}")
+            return False
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get database stats from Supabase."""
+        try:
+            total_res = self.client.table("movies").select("id", count="exact").execute()
+            avail_res = self.client.table("movies").select("id", count="exact").eq("status", "available").execute()
+            total = total_res.count or 0
+            available = avail_res.count or 0
+            return {
+                "total": total,
+                "available": available,
+                "pending": total - available,
+                "last_scrape": datetime.utcnow().isoformat()
+            }
+        except Exception as e:
+            logger.error(f"Supabase get_stats error: {e}")
+            return {"total": 0, "available": 0, "pending": 0, "last_scrape": None}
+
+    def ensure_seeded(self) -> None:
+        """No-op for Supabase as data lives in the cloud database."""
+        pass
+
+
+# Dynamic Database Instance Selection
+_sb_url = os.environ.get("SUPABASE_URL")
+_sb_key = os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_SERVICE_KEY")
+
+if _sb_url and _sb_key:
+    try:
+        db = SupabaseDatabase(_sb_url, _sb_key)
+        logger.info("Successfully initialized Supabase database driver.")
+    except Exception as _sb_err:
+        logger.error(f"Failed to initialize Supabase driver ({_sb_err}). Falling back to JSONDatabase.")
+        db = JSONDatabase()
+else:
+    logger.info("SUPABASE_URL / SUPABASE_KEY not set. Operating with JSONDatabase driver.")
+    db = JSONDatabase()
+

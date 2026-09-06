@@ -213,28 +213,37 @@ document.addEventListener('DOMContentLoaded', function() {
       try {
         const startResp = await fetch(`/api/start-resolve/${movieId}/${linkIdx}`);
         const startData = await startResp.json();
+
+        // 0ms Fast Path: pre-resolved direct R2 / PixelDrain link stored in database
+        if ((startData.status === 'instant' || startData.status === 'done') && startData.download_url) {
+          btn.innerHTML = `<i class="bi bi-check-circle-fill text-success me-2"></i> Downloading ${quality}!`;
+          window.location.href = startData.download_url;
+          setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
+          return;
+        }
+
         if (startData.status === 'started' && startData.job_id) {
           jobId = startData.job_id;
         }
       } catch (startErr) {
-        console.warn('start-resolve failed, using legacy /download/ route:', startErr);
+        console.warn('start-resolve failed, using fallback route:', startErr);
       }
 
       if (!jobId) {
-        // Fallback: navigate directly (old behaviour)
+        // Fallback: navigate directly
         btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Resolving ${quality}…`;
         window.location.href = `/download/${movieId}/${linkIdx}`;
         setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 5000);
         return;
       }
 
-      // ── Step 2: Poll resolve-status every 2 seconds ─────────────────────
+      // ── Step 2: Poll resolve-status every 1.5 seconds ──────────────────
       let elapsed = 0;
-      const MAX_WAIT = 90; // seconds
-      const POLL_INTERVAL = 2000;
+      const MAX_WAIT = 12; // 12 seconds max wait time
+      const POLL_INTERVAL = 1500;
 
       const updateLabel = () => {
-        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Resolving ${quality}… ${elapsed}s`;
+        btn.innerHTML = `<span class="spinner-border spinner-border-sm me-2" role="status"></span> Resolving ${quality}… ${elapsed.toFixed(1)}s`;
       };
       updateLabel();
 
@@ -244,12 +253,13 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (elapsed >= MAX_WAIT) {
           clearInterval(pollTimer);
-          console.warn('Resolution timed out after', MAX_WAIT, 's — falling back to /download/');
-          btn.innerHTML = `<i class="bi bi-cloud-download me-2"></i> Redirecting…`;
+          console.warn('Resolution timed out after', MAX_WAIT, 's — redirecting to source fallback');
+          btn.innerHTML = `<i class="bi bi-cloud-download me-2"></i> Opening download page…`;
           window.location.href = `/download/${movieId}/${linkIdx}`;
-          setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 5000);
+          setTimeout(() => { btn.innerHTML = originalHtml; btn.disabled = false; btn.style.pointerEvents = 'auto'; }, 4000);
           return;
         }
+
 
         try {
           const statusResp = await fetch(`/api/resolve-status/${jobId}`);

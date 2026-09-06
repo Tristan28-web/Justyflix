@@ -39,7 +39,9 @@ data/logs/
 data/backup/
 data/crawler_progress.json
 data/*.tmp
+data/*.lock
 *.log
+
 logs/
 
 # IDE / Editor files

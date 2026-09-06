@@ -109,6 +109,21 @@ def _start_resolution_job(movie_id: str, link_idx: int, source_url: str, quality
                     timeout=20,
                     force_refresh=True
                 )
+            if res.get("success") and res.get("download_url"):
+                try:
+                    movie = db.get_movie(movie_id)
+                    if movie and movie.get("download_links"):
+                        links = movie["download_links"]
+                        if 0 <= link_idx < len(links):
+                            links[link_idx]["resolved_r2_url"] = res["download_url"]
+                            links[link_idx]["resolved_at"] = _time.time()
+                            if hasattr(db, 'update_movie_download_links'):
+                                db.update_movie_download_links(movie_id, links)
+                            elif hasattr(db, 'save_movie'):
+                                db.save_movie(movie)
+                except Exception as db_save_err:
+                    logger.warning(f"Could not save resolved URL to database: {db_save_err}")
+
             with _jobs_lock:
                 _resolution_jobs[job_id]["status"] = "done"
                 _resolution_jobs[job_id]["result"] = res
@@ -829,6 +844,18 @@ def api_start_resolve(movie_id, link_idx):
         source_url = movie.get('source_url') or target_link.get('url', '')
         fallback_url = target_link.get('url') or target_link.get('original_url', '')
         file_id = target_link.get('file_id', '')
+
+        # 0ms Fast Path: If direct Cloudflare R2 / PixelDrain link is pre-resolved in database
+        cached_r2 = target_link.get("resolved_r2_url")
+        if cached_r2 and (cached_r2.startswith("http") or cached_r2.startswith("magnet:")):
+            if verify_r2_url(cached_r2, timeout=2.5):
+                logger.info(f"Serving pre-resolved instant R2 CDN download URL for {movie_id} [{quality}]")
+                return jsonify({
+                    "status": "instant",
+                    "download_url": cached_r2,
+                    "quality": quality,
+                    "filename": f"{movie.get('title', 'Movie')}_{quality}.mkv"
+                }), 200
 
         job_id = _start_resolution_job(movie_id, link_idx, source_url, quality, fallback_url, file_id)
         return jsonify({"status": "started", "job_id": job_id, "quality": quality}), 202
